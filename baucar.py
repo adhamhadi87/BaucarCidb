@@ -11,8 +11,6 @@ ID_LOOKUP_FILE = "list ID.xlsx"
 
 st.markdown("""
 <style>
-/* CIDB RED MIRROR PILL THEME */
-
 .stApp {
     background: linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%);
 }
@@ -41,7 +39,7 @@ section[data-testid="stSidebar"] span {
     color: #f8fafc !important;
 }
 
-/* Inactive pills */
+/* inactive pills */
 section[data-testid="stSidebar"] button[data-testid="stBaseButton-pills"],
 section[data-testid="stSidebar"] button[aria-pressed="false"],
 section[data-testid="stSidebar"] button[aria-selected="false"] {
@@ -62,7 +60,7 @@ section[data-testid="stSidebar"] button[aria-selected="false"] * {
     font-weight: 800 !important;
 }
 
-/* Active pills */
+/* active pills */
 section[data-testid="stSidebar"] button[data-testid="stBaseButton-pillsActive"],
 section[data-testid="stSidebar"] button[aria-pressed="true"],
 section[data-testid="stSidebar"] button[aria-selected="true"],
@@ -184,15 +182,6 @@ def standardize_bulan(series):
     return extracted.fillna("").astype(str).str.upper().str.strip().map(bulan_map)
 
 
-def status_display(status_set):
-    statuses = sorted([x for x in status_set if x in ["IN", "OUT"]])
-    if not statuses:
-        return "BELUM DIKEMASKINI"
-    if len(statuses) == 2:
-        return "IN / OUT"
-    return statuses[0]
-
-
 bulan_order = ["JAN", "FEB", "MAC", "APR", "MEI", "JUN", "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"]
 
 baucar = load_csv(BAUCAR_CSV_URL)
@@ -266,38 +255,34 @@ if "DATE" in data_app.columns:
     data_app["DATE"] = pd.to_datetime(data_app["DATE"], errors="coerce", dayfirst=True)
     data_app = data_app.sort_values("DATE")
 
-# Status logic:
-# BAUCAR = master list semua baucar.
-# DATA APP = baucar yang sudah dikemaskini.
-# Jika NO_BAUCAR wujud dalam DATA APP, status ikut IN/OUT di DATA APP.
-# Jika NO_BAUCAR tidak wujud langsung dalam DATA APP, status = BELUM DIKEMASKINI.
-status_agg = (
-    data_app.groupby("NO_BAUCAR_CLEAN")["IN_OUT"]
-    .agg(lambda x: set([v for v in x if v in ["IN", "OUT"]]))
-    .reset_index(name="STATUS_SET")
-)
+# =========================
+# STATUS LOGIC FINAL
+# =========================
+# DATA APP menentukan status IN / OUT.
+# Jika NO_BAUCAR tiada langsung dalam DATA APP, baru jadi BELUM DIKEMASKINI.
+# Jika ada banyak rekod untuk baucar sama, guna rekod terakhir mengikut DATE.
+latest_app = data_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last").copy()
+latest_app["ADA_DATA_APP"] = True
+latest_app["STATUS_KEMASKINI"] = latest_app["IN_OUT"]
 
-status_agg["ADA_DATA_APP"] = True
-status_agg["STATUS_KEMASKINI"] = status_agg["STATUS_SET"].apply(status_display)
-
-# Ambil rekod terkini untuk maklumat tarikh/kotak/email sahaja
-latest_app = data_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last")
+latest_app.loc[
+    ~latest_app["STATUS_KEMASKINI"].isin(["IN", "OUT"]),
+    "STATUS_KEMASKINI"
+] = "TELAH DIKEMASKINI"
 
 latest_cols = [
     c for c in [
-        "NO_BAUCAR_CLEAN", "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL",
-        "BULAN_TAHUN_APP"
+        "NO_BAUCAR_CLEAN", "ADA_DATA_APP", "STATUS_KEMASKINI",
+        "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL", "BULAN_TAHUN_APP"
     ]
     if c in latest_app.columns
 ]
 
-df = baucar.merge(status_agg, on="NO_BAUCAR_CLEAN", how="left")
-df = df.merge(latest_app[latest_cols], on="NO_BAUCAR_CLEAN", how="left")
+df = baucar.merge(latest_app[latest_cols], on="NO_BAUCAR_CLEAN", how="left")
 df = df.merge(id_lookup[["ID", "NAMA_ID"]], on="ID", how="left")
 
 df["ADA_DATA_APP"] = df["ADA_DATA_APP"].fillna(False)
 df["STATUS_KEMASKINI"] = df["STATUS_KEMASKINI"].fillna("BELUM DIKEMASKINI")
-df["STATUS_SET"] = df["STATUS_SET"].apply(lambda x: x if isinstance(x, set) else set())
 
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
 df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
@@ -330,8 +315,6 @@ if "(Blank)" in id_options:
 
 
 def set_default_filters():
-    # Kosong bermaksud semua data dipaparkan.
-    # Bila user klik pill, pilihan itu sahaja aktif.
     st.session_state["tahun_filter"] = []
     st.session_state["bulan_filter"] = []
     st.session_state["status_filter"] = []
@@ -359,31 +342,15 @@ st.sidebar.button("Refresh Filter", on_click=set_default_filters, use_container_
 
 tahun_selected = tahun if tahun else tahun_list
 bulan_selected = bulan if bulan else bulan_list
+status_selected = status if status else status_list
 id_selected = id_filter if id_filter else id_options
 
 df_filter = df[
     df["TAHUN"].astype(str).isin(tahun_selected)
     & df["BULAN"].astype(str).isin(bulan_selected)
+    & df["STATUS_KEMASKINI"].astype(str).isin(status_selected)
     & df["ID_FILTER_LABEL"].astype(str).isin(id_selected)
 ].copy()
-
-# Status filter khas:
-# IN = wujud IN dalam DATA APP
-# OUT = wujud OUT dalam DATA APP
-# BELUM DIKEMASKINI = NO_BAUCAR tiada dalam DATA APP
-if status:
-    mask_status = pd.Series(False, index=df_filter.index)
-
-    if "IN" in status:
-        mask_status = mask_status | df_filter["STATUS_SET"].apply(lambda s: "IN" in s)
-
-    if "OUT" in status:
-        mask_status = mask_status | df_filter["STATUS_SET"].apply(lambda s: "OUT" in s)
-
-    if "BELUM DIKEMASKINI" in status:
-        mask_status = mask_status | (~df_filter["ADA_DATA_APP"])
-
-    df_filter = df_filter[mask_status].copy()
 
 total_2024 = len(df_filter[df_filter["TAHUN"] == "2024"])
 total_2025 = len(df_filter[df_filter["TAHUN"] == "2025"])
@@ -485,11 +452,12 @@ with tab3:
 
 with st.expander("Semakan Status"):
     st.write("Jumlah BAUCAR:", len(baucar))
-    st.write("NO BAUCAR unik dalam DATA APP:", data_app["NO_BAUCAR_CLEAN"].nunique())
+    st.write("NO BAUCAR unik DATA APP:", data_app["NO_BAUCAR_CLEAN"].nunique())
     st.write("Total selepas filter:", len(df_filter))
-    st.write("IN:", df["STATUS_SET"].apply(lambda s: "IN" in s).sum())
-    st.write("OUT:", df["STATUS_SET"].apply(lambda s: "OUT" in s).sum())
-    st.write("BELUM DIKEMASKINI:", (~df["ADA_DATA_APP"]).sum())
+    st.write("IN:", len(df[df["STATUS_KEMASKINI"] == "IN"]))
+    st.write("OUT:", len(df[df["STATUS_KEMASKINI"] == "OUT"]))
+    st.write("BELUM DIKEMASKINI:", len(df[df["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]))
+    st.write("Status lain jika ada:", sorted([x for x in df["STATUS_KEMASKINI"].dropna().unique() if x not in ["IN", "OUT", "BELUM DIKEMASKINI"]]))
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
 
