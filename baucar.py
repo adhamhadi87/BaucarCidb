@@ -39,7 +39,6 @@ section[data-testid="stSidebar"] span {
     color: #f8fafc !important;
 }
 
-/* Inactive pills */
 section[data-testid="stSidebar"] button[data-testid="stBaseButton-pills"],
 section[data-testid="stSidebar"] button[aria-pressed="false"],
 section[data-testid="stSidebar"] button[aria-selected="false"] {
@@ -60,7 +59,6 @@ section[data-testid="stSidebar"] button[aria-selected="false"] * {
     font-weight: 800 !important;
 }
 
-/* Active pills */
 section[data-testid="stSidebar"] button[data-testid="stBaseButton-pillsActive"],
 section[data-testid="stSidebar"] button[aria-pressed="true"],
 section[data-testid="stSidebar"] button[aria-selected="true"],
@@ -163,6 +161,16 @@ def clean_no_baucar(series):
     )
 
 
+def normalize_status(series):
+    return (
+        series.fillna("")
+        .astype(str)
+        .str.upper()
+        .str.strip()
+        .str.replace(r"\s+", "", regex=True)
+    )
+
+
 def standardize_bulan(series):
     bulan_map = {
         "JAN": "JAN", "JANUARI": "JAN",
@@ -172,7 +180,7 @@ def standardize_bulan(series):
         "MEI": "MEI", "MAY": "MEI",
         "JUN": "JUN", "JUNE": "JUN",
         "JUL": "JUL", "JULY": "JUL",
-        "OGO": "OGO", "OGOS": "OGO", "AUG": "OGO", "AUGUST": "OGO",
+        "OGO": "OGO", "OGOS": "OGO", "AUG": "OGO", "AUGUST": "AUG",
         "SEP": "SEP", "SEPT": "SEP", "SEPTEMBER": "SEP",
         "OKT": "OKT", "OCT": "OKT", "OCTOBER": "OKT",
         "NOV": "NOV", "NOVEMBER": "NOV",
@@ -246,7 +254,7 @@ baucar["BULAN"] = standardize_bulan(baucar["BULAN_TAHUN"])
 # DATA APP
 data_app["NO_BAUCAR_CLEAN"] = clean_no_baucar(data_app["NO_BAUCAR"])
 data_app = data_app[data_app["NO_BAUCAR_CLEAN"] != ""].copy()
-data_app["IN_OUT"] = clean_text(data_app["IN_OUT"]).str.upper()
+data_app["IN_OUT"] = normalize_status(data_app["IN_OUT"])
 data_app.loc[~data_app["IN_OUT"].isin(["IN", "OUT"]), "IN_OUT"] = ""
 
 if "DATE" in data_app.columns:
@@ -259,39 +267,53 @@ id_lookup["NAMA_ID"] = clean_text(id_lookup["NAMA_ID"])
 id_lookup = id_lookup.drop_duplicates(subset=["ID"], keep="first")
 
 # ======================================================================
-# STATUS LOGIC - JANGAN TUKAR
-# IN / OUT = hanya daripada DATA APP
-# BELUM DIKEMASKINI = ada dalam BAUCAR tetapi tiada langsung dalam DATA APP
+# STATUS LOGIC - LOCKED
+# IN = NO BAUCAR ada status IN dalam DATA APP
+# OUT = NO BAUCAR ada status OUT dalam DATA APP
+# BELUM DIKEMASKINI = NO BAUCAR ada dalam BAUCAR tetapi tiada langsung dalam DATA APP
 # ======================================================================
-latest_app = data_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last").copy()
 
+# Flags status daripada semua rekod DATA APP, bukan latest sahaja
+status_flags = (
+    data_app.groupby("NO_BAUCAR_CLEAN")
+    .agg(
+        HAS_IN=("IN_OUT", lambda x: (x == "IN").any()),
+        HAS_OUT=("IN_OUT", lambda x: (x == "OUT").any()),
+        ADA_DATA_APP=("NO_BAUCAR_CLEAN", "size")
+    )
+    .reset_index()
+)
+
+status_flags["ADA_DATA_APP"] = status_flags["ADA_DATA_APP"] > 0
+
+def make_status(row):
+    if not row["ADA_DATA_APP"]:
+        return "BELUM DIKEMASKINI"
+    if row["HAS_IN"] and row["HAS_OUT"]:
+        return "IN / OUT"
+    if row["HAS_IN"]:
+        return "IN"
+    if row["HAS_OUT"]:
+        return "OUT"
+    return "BELUM DIKEMASKINI"
+
+# Latest app only for details tarikh/kotak/email
+latest_app = data_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last").copy()
 latest_cols = [
     c for c in [
-        "NO_BAUCAR_CLEAN", "IN_OUT",
-        "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL", "BULAN_TAHUN_APP"
+        "NO_BAUCAR_CLEAN", "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL", "BULAN_TAHUN_APP"
     ]
     if c in latest_app.columns
 ]
 
-df = baucar.merge(latest_app[latest_cols], on="NO_BAUCAR_CLEAN", how="left")
+df = baucar.merge(status_flags, on="NO_BAUCAR_CLEAN", how="left")
+df = df.merge(latest_app[latest_cols], on="NO_BAUCAR_CLEAN", how="left")
 df = df.merge(id_lookup[["ID", "NAMA_ID"]], on="ID", how="left")
 
-df["STATUS_KEMASKINI"] = df["IN_OUT"]
-df.loc[df["IN_OUT"].isna(), "STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
-
-df["STATUS_KEMASKINI"] = (
-    df["STATUS_KEMASKINI"]
-    .fillna("BELUM DIKEMASKINI")
-    .astype(str)
-    .str.upper()
-    .str.strip()
-)
-
-df["STATUS_KEMASKINI"] = df["STATUS_KEMASKINI"].replace({
-    "": "BELUM DIKEMASKINI",
-    "NAN": "BELUM DIKEMASKINI",
-    "NONE": "BELUM DIKEMASKINI"
-})
+df["HAS_IN"] = df["HAS_IN"].fillna(False).astype(bool)
+df["HAS_OUT"] = df["HAS_OUT"].fillna(False).astype(bool)
+df["ADA_DATA_APP"] = df["ADA_DATA_APP"].fillna(False).astype(bool)
+df["STATUS_KEMASKINI"] = df.apply(make_status, axis=1)
 
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
 df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
@@ -352,15 +374,28 @@ st.sidebar.button("Refresh Filter", on_click=set_default_filters, use_container_
 
 tahun_selected = tahun if tahun else tahun_list
 bulan_selected = bulan if bulan else bulan_list
-status_selected = status if status else status_list
 id_selected = id_filter if id_filter else id_options
 
 df_filter = df[
     df["TAHUN"].astype(str).isin(tahun_selected)
     & df["BULAN"].astype(str).isin(bulan_selected)
-    & df["STATUS_KEMASKINI"].astype(str).isin(status_selected)
     & df["ID_FILTER_LABEL"].astype(str).isin(id_selected)
 ].copy()
+
+# Filter status khas supaya klik IN / OUT ada nilai jika baucar pernah ada IN / OUT dalam DATA APP
+if status:
+    status_mask = pd.Series(False, index=df_filter.index)
+
+    if "IN" in status:
+        status_mask = status_mask | df_filter["HAS_IN"]
+
+    if "OUT" in status:
+        status_mask = status_mask | df_filter["HAS_OUT"]
+
+    if "BELUM DIKEMASKINI" in status:
+        status_mask = status_mask | (~df_filter["ADA_DATA_APP"])
+
+    df_filter = df_filter[status_mask].copy()
 
 total_2024 = len(df_filter[df_filter["TAHUN"] == "2024"])
 total_2025 = len(df_filter[df_filter["TAHUN"] == "2025"])
@@ -453,19 +488,20 @@ with tab1:
     st.dataframe(df_filter[papar_cols], use_container_width=True, hide_index=True)
 
 with tab2:
-    telah = df_filter[df_filter["STATUS_KEMASKINI"].isin(["IN", "OUT"])]
+    telah = df_filter[df_filter["ADA_DATA_APP"]]
     st.dataframe(telah[papar_cols], use_container_width=True, hide_index=True)
 
 with tab3:
-    belum = df_filter[df_filter["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]
+    belum = df_filter[~df_filter["ADA_DATA_APP"]]
     st.dataframe(belum[papar_cols], use_container_width=True, hide_index=True)
 
 with st.expander("Semakan Status"):
     st.write("Jumlah BAUCAR:", len(baucar))
+    st.write("Jumlah DATA APP:", len(data_app))
     st.write("NO BAUCAR unik DATA APP:", data_app["NO_BAUCAR_CLEAN"].nunique())
-    st.write("IN:", len(df[df["STATUS_KEMASKINI"] == "IN"]))
-    st.write("OUT:", len(df[df["STATUS_KEMASKINI"] == "OUT"]))
-    st.write("BELUM DIKEMASKINI:", len(df[df["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]))
+    st.write("IN:", int(df["HAS_IN"].sum()))
+    st.write("OUT:", int(df["HAS_OUT"].sum()))
+    st.write("BELUM DIKEMASKINI:", int((~df["ADA_DATA_APP"]).sum()))
     st.write("Total selepas filter:", len(df_filter))
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
