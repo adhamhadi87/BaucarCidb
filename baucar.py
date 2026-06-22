@@ -11,8 +11,9 @@ ID_LOOKUP_FILE = "list ID.xlsx"
 st.markdown("""
 <style>
 /* =========================
-   CIDB Sidebar Theme
-   Selected = terang, Unselected = neutral
+   CIDB Filter Theme
+   Default kosong = semua data
+   Klik pill = pill aktif sahaja yang dipilih
 ========================= */
 
 .stApp {
@@ -39,7 +40,7 @@ section[data-testid="stSidebar"] span {
     color: #f8fafc !important;
 }
 
-/* Pills */
+/* Pill base */
 section[data-testid="stSidebar"] button[aria-pressed] {
     border-radius: 999px !important;
     padding: 0.45rem 0.85rem !important;
@@ -48,10 +49,10 @@ section[data-testid="stSidebar"] button[aria-pressed] {
     backdrop-filter: blur(8px);
 }
 
-/* Unselected pill - neutral dark glass */
+/* Unselected pill - neutral */
 section[data-testid="stSidebar"] button[aria-pressed="false"] {
-    background: rgba(255,255,255,0.055) !important;
-    border: 1px solid rgba(255,255,255,0.18) !important;
+    background: rgba(255,255,255,0.06) !important;
+    border: 1px solid rgba(255,255,255,0.20) !important;
     color: #cbd5e1 !important;
     font-weight: 650 !important;
     box-shadow:
@@ -59,7 +60,7 @@ section[data-testid="stSidebar"] button[aria-pressed="false"] {
         0 4px 12px rgba(0,0,0,0.10) !important;
 }
 
-/* Unselected hover - cyan hint */
+/* Hover */
 section[data-testid="stSidebar"] button[aria-pressed="false"]:hover {
     border: 1px solid rgba(34,211,238,0.85) !important;
     color: #f8fafc !important;
@@ -69,17 +70,17 @@ section[data-testid="stSidebar"] button[aria-pressed="false"]:hover {
     transform: translateY(-1px);
 }
 
-/* Selected pill - bright emerald/cyan glow */
+/* Selected pill - lamp/glow */
 section[data-testid="stSidebar"] button[aria-pressed="true"] {
-    background: linear-gradient(135deg, #10b981 0%, #14b8a6 45%, #06b6d4 100%) !important;
-    border: 1.5px solid rgba(255,255,255,0.92) !important;
+    background: linear-gradient(135deg, #2563eb 0%, #06b6d4 50%, #10b981 100%) !important;
+    border: 1.5px solid rgba(255,255,255,0.95) !important;
     color: white !important;
     font-weight: 850 !important;
     box-shadow:
-        0 0 8px rgba(16,185,129,0.88),
-        0 0 18px rgba(20,184,166,0.68),
-        0 0 34px rgba(6,182,212,0.52),
-        inset 0 1px 0 rgba(255,255,255,0.40) !important;
+        0 0 8px rgba(37,99,235,0.80),
+        0 0 18px rgba(6,182,212,0.70),
+        0 0 34px rgba(16,185,129,0.55),
+        inset 0 1px 0 rgba(255,255,255,0.42) !important;
 }
 
 /* Tick selected */
@@ -287,10 +288,12 @@ if "(Blank)" in id_options:
 
 
 def set_default_filters():
-    st.session_state["tahun_filter"] = tahun_list
-    st.session_state["bulan_filter"] = bulan_list
-    st.session_state["status_filter"] = status_list
-    st.session_state["id_filter"] = id_options
+    # Default kosong = paparkan semua data.
+    # Bila user klik pill, hanya pilihan yang diklik sahaja akan ditapis.
+    st.session_state["tahun_filter"] = []
+    st.session_state["bulan_filter"] = []
+    st.session_state["status_filter"] = []
+    st.session_state["id_filter"] = []
 
 
 for key in ["tahun_filter", "bulan_filter", "status_filter", "id_filter"]:
@@ -312,11 +315,16 @@ id_filter = st.sidebar.pills("Nama / ID", id_options, selection_mode="multi", ke
 
 st.sidebar.button("Refresh Filter", on_click=set_default_filters, use_container_width=True)
 
+tahun_selected = tahun if tahun else tahun_list
+bulan_selected = bulan if bulan else bulan_list
+status_selected = status if status else status_list
+id_selected = id_filter if id_filter else id_options
+
 df_filter = df[
-    df["TAHUN"].astype(str).isin(tahun)
-    & df["BULAN"].astype(str).isin(bulan)
-    & df["STATUS_KEMASKINI"].astype(str).isin(status)
-    & df["ID_FILTER_LABEL"].astype(str).isin(id_filter)
+    df["TAHUN"].astype(str).isin(tahun_selected)
+    & df["BULAN"].astype(str).isin(bulan_selected)
+    & df["STATUS_KEMASKINI"].astype(str).isin(status_selected)
+    & df["ID_FILTER_LABEL"].astype(str).isin(id_selected)
 ]
 
 total_2024 = len(df_filter[df_filter["TAHUN"] == "2024"])
