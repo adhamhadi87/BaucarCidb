@@ -21,6 +21,7 @@ def clean_no_baucar(series):
         .str.strip()
         .str.upper()
         .str.replace(r"\s+", "", regex=True)
+        .replace(["NAN", "NONE", ""], pd.NA)
     )
 
 
@@ -28,6 +29,31 @@ def clean_id(series):
     numeric_id = pd.to_numeric(series, errors="coerce")
     return numeric_id.astype("Int64").astype(str).replace("<NA>", "")
 
+
+def standardize_bulan(series):
+    bulan_map = {
+        "JAN": "JAN", "JANUARI": "JAN",
+        "FEB": "FEB", "FEBRUARI": "FEB",
+        "MAC": "MAC", "MAR": "MAC", "MARCH": "MAC",
+        "APR": "APR", "APRIL": "APR",
+        "MEI": "MEI", "MAY": "MEI",
+        "JUN": "JUN", "JUNE": "JUN",
+        "JUL": "JUL", "JULY": "JUL",
+        "OGO": "OGO", "OGOS": "OGO", "AUG": "OGO", "AUGUST": "OGO",
+        "SEP": "SEP", "SEPT": "SEP", "SEPTEMBER": "SEP",
+        "OKT": "OKT", "OCT": "OKT", "OCTOBER": "OKT",
+        "NOV": "NOV", "NOVEMBER": "NOV",
+        "DIS": "DIS", "DEC": "DIS", "DECEMBER": "DIS"
+    }
+
+    extracted = series.astype(str).str.extract(r"([A-Za-zÀ-ÿ]+)")[0]
+    return extracted.astype(str).str.upper().str.strip().map(bulan_map)
+
+
+bulan_order = [
+    "JAN", "FEB", "MAC", "APR", "MEI", "JUN",
+    "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"
+]
 
 baucar = load_csv(BAUCAR_CSV_URL)
 data_app = load_csv(DATA_APP_CSV_URL)
@@ -51,8 +77,8 @@ data_app = data_app.rename(columns={
     "EMAIL": "EMAIL"
 })
 
-required_baucar = ["NO_BAUCAR", "NAMA", "ID"]
-required_data_app = ["NO_BAUCAR", "IN_OUT", "BULAN_TAHUN"]
+required_baucar = ["NO_BAUCAR", "NAMA", "ID", "BULAN_TAHUN"]
+required_data_app = ["NO_BAUCAR"]
 
 missing_baucar = [c for c in required_baucar if c not in baucar.columns]
 missing_data_app = [c for c in required_data_app if c not in data_app.columns]
@@ -68,72 +94,43 @@ if missing_data_app:
     st.stop()
 
 baucar["NO_BAUCAR"] = clean_no_baucar(baucar["NO_BAUCAR"])
+baucar["ID"] = clean_id(baucar["ID"])
+baucar["TAHUN"] = baucar["BULAN_TAHUN"].astype(str).str.extract(r"(\d{4})")
+baucar["BULAN"] = standardize_bulan(baucar["BULAN_TAHUN"])
+
 data_app["NO_BAUCAR"] = clean_no_baucar(data_app["NO_BAUCAR"])
 
-baucar["ID"] = clean_id(baucar["ID"])
+if "IN_OUT" not in data_app.columns:
+    data_app["IN_OUT"] = ""
 
-df = data_app.merge(
-    baucar[["NO_BAUCAR", "NAMA", "ID"]],
+data_app["IN_OUT"] = data_app["IN_OUT"].fillna("").astype(str).str.upper().str.strip()
+data_app.loc[~data_app["IN_OUT"].isin(["IN", "OUT"]), "IN_OUT"] = "BELUM DIKEMASKINI"
+
+if "BULAN_TAHUN" in data_app.columns:
+    data_app["TAHUN_APP"] = data_app["BULAN_TAHUN"].astype(str).str.extract(r"(\d{4})")
+    data_app["BULAN_APP"] = standardize_bulan(data_app["BULAN_TAHUN"])
+
+latest_app = (
+    data_app
+    .dropna(subset=["NO_BAUCAR"])
+    .drop_duplicates(subset=["NO_BAUCAR"], keep="last")
+)
+
+df = baucar.merge(
+    latest_app,
     on="NO_BAUCAR",
-    how="left"
+    how="left",
+    suffixes=("", "_APP")
 )
 
-df["BULAN_TAHUN"] = df["BULAN_TAHUN"].astype(str)
-df["TAHUN"] = df["BULAN_TAHUN"].str.extract(r"(\d{4})")
+df["STATUS_KEMASKINI"] = df["IN_OUT"].fillna("BELUM DIKEMASKINI")
+df.loc[~df["STATUS_KEMASKINI"].isin(["IN", "OUT"]), "STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
 
-df["BULAN"] = df["BULAN_TAHUN"].str.extract(r"([A-Za-zÀ-ÿ]+)")
+df["IN_OUT"] = df["STATUS_KEMASKINI"]
+df["TAHUN"] = df["TAHUN"].fillna(df.get("TAHUN_APP"))
+df["BULAN"] = df["BULAN"].fillna(df.get("BULAN_APP"))
 
-bulan_map = {
-    "JAN": "JAN",
-    "JANUARI": "JAN",
-    "FEB": "FEB",
-    "FEBRUARI": "FEB",
-    "MAC": "MAC",
-    "MAR": "MAC",
-    "MARCH": "MAC",
-    "APR": "APR",
-    "APRIL": "APR",
-    "MEI": "MEI",
-    "MAY": "MEI",
-    "JUN": "JUN",
-    "JUNE": "JUN",
-    "JUL": "JUL",
-    "JULY": "JUL",
-    "OGO": "OGO",
-    "OGOS": "OGO",
-    "AUG": "OGO",
-    "AUGUST": "OGO",
-    "SEP": "SEP",
-    "SEPT": "SEP",
-    "SEPTEMBER": "SEP",
-    "OKT": "OKT",
-    "OCT": "OKT",
-    "OCTOBER": "OKT",
-    "NOV": "NOV",
-    "NOVEMBER": "NOV",
-    "DIS": "DIS",
-    "DEC": "DIS",
-    "DECEMBER": "DIS"
-}
-
-bulan_order = [
-    "JAN", "FEB", "MAC", "APR", "MEI", "JUN",
-    "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"
-]
-
-df["BULAN"] = (
-    df["BULAN"]
-    .astype(str)
-    .str.upper()
-    .str.strip()
-    .map(bulan_map)
-)
-
-df["BULAN"] = pd.Categorical(
-    df["BULAN"],
-    categories=bulan_order,
-    ordered=True
-)
+df["BULAN"] = pd.Categorical(df["BULAN"], categories=bulan_order, ordered=True)
 
 if "DATE" in df.columns:
     df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce", dayfirst=True)
@@ -147,49 +144,26 @@ st.markdown("""
 
 st.sidebar.title("Filter")
 
-tahun_list = sorted(df["TAHUN"].dropna().unique())
+tahun_list = sorted(df["TAHUN"].dropna().astype(str).unique())
 bulan_list = [b for b in bulan_order if b in df["BULAN"].dropna().astype(str).unique()]
-status_list = sorted(df["IN_OUT"].dropna().astype(str).unique())
+status_list = ["IN", "OUT", "BELUM DIKEMASKINI"]
 
 id_list = sorted(
     [x for x in df["ID"].dropna().astype(str).unique() if x != ""],
     key=lambda x: int(x) if x.isdigit() else 999999
 )
 
-tahun = st.sidebar.pills(
-    "Tahun",
-    tahun_list,
-    default=tahun_list,
-    selection_mode="multi"
-)
-
-bulan = st.sidebar.pills(
-    "Bulan",
-    bulan_list,
-    default=bulan_list,
-    selection_mode="multi"
-)
-
-status = st.sidebar.pills(
-    "IN / OUT",
-    status_list,
-    default=status_list,
-    selection_mode="multi"
-)
-
-id_filter = st.sidebar.pills(
-    "ID",
-    id_list,
-    default=id_list,
-    selection_mode="multi"
-)
+tahun = st.sidebar.pills("Tahun", tahun_list, default=tahun_list, selection_mode="multi")
+bulan = st.sidebar.pills("Bulan", bulan_list, default=bulan_list, selection_mode="multi")
+status = st.sidebar.pills("Status", status_list, default=status_list, selection_mode="multi")
+id_filter = st.sidebar.pills("ID", id_list, default=id_list, selection_mode="multi")
 
 carian = st.sidebar.text_input("Cari Nama / No Baucar / Email / Kotak")
 
 df_filter = df[
-    df["TAHUN"].isin(tahun)
+    df["TAHUN"].astype(str).isin(tahun)
     & df["BULAN"].astype(str).isin(bulan)
-    & df["IN_OUT"].astype(str).isin(status)
+    & df["STATUS_KEMASKINI"].astype(str).isin(status)
     & df["ID"].astype(str).isin(id_filter)
 ]
 
@@ -202,29 +176,37 @@ if carian:
     ]
 
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Total Pergerakan", len(df_filter))
-col2.metric("Total Baucar Unik", df_filter["NO_BAUCAR"].nunique())
-col3.metric("Total IN", len(df_filter[df_filter["IN_OUT"].astype(str).str.upper() == "IN"]))
-col4.metric("Total OUT", len(df_filter[df_filter["IN_OUT"].astype(str).str.upper() == "OUT"]))
+col1.metric("Total Baucar", len(df_filter))
+col2.metric("Telah Dikemaskini", len(df_filter[df_filter["STATUS_KEMASKINI"].isin(["IN", "OUT"])]))
+col3.metric("Belum Dikemaskini", len(df_filter[df_filter["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]))
+col4.metric("Baucar Unik", df_filter["NO_BAUCAR"].nunique())
+
+col5, col6 = st.columns(2)
+col5.metric("Total IN", len(df_filter[df_filter["STATUS_KEMASKINI"] == "IN"]))
+col6.metric("Total OUT", len(df_filter[df_filter["STATUS_KEMASKINI"] == "OUT"]))
 
 st.divider()
 
 c1, c2 = st.columns(2)
 
 with c1:
-    chart_status = df_filter.groupby("IN_OUT").size().reset_index(name="Jumlah")
+    chart_status = (
+        df_filter.groupby("STATUS_KEMASKINI")
+        .size()
+        .reset_index(name="Jumlah")
+    )
     fig_status = px.pie(
         chart_status,
-        names="IN_OUT",
+        names="STATUS_KEMASKINI",
         values="Jumlah",
-        title="IN vs OUT",
+        title="Status Baucar: IN / OUT / Belum Dikemaskini",
         hole=0.4
     )
     st.plotly_chart(fig_status, use_container_width=True)
 
 with c2:
     chart_id = (
-        df_filter.groupby("ID")
+        df_filter.groupby(["ID", "STATUS_KEMASKINI"])
         .size()
         .reset_index(name="Jumlah")
         .sort_values("Jumlah", ascending=False)
@@ -233,52 +215,54 @@ with c2:
         chart_id,
         x="ID",
         y="Jumlah",
+        color="STATUS_KEMASKINI",
         text="Jumlah",
-        title="Jumlah Baucar Mengikut ID"
+        title="Status Baucar Mengikut ID"
     )
     st.plotly_chart(fig_id, use_container_width=True)
 
 chart_bulan = (
-    df_filter.groupby(["TAHUN", "BULAN"], observed=True)
+    df_filter.groupby(["TAHUN", "BULAN", "STATUS_KEMASKINI"], observed=True)
     .size()
     .reset_index(name="Jumlah")
 )
-
-chart_bulan["BULAN"] = pd.Categorical(
-    chart_bulan["BULAN"],
-    categories=bulan_order,
-    ordered=True
-)
-
-chart_bulan = chart_bulan.sort_values(["TAHUN", "BULAN"])
 
 fig_bulan = px.bar(
     chart_bulan,
     x="BULAN",
     y="Jumlah",
-    color="TAHUN",
-    barmode="group",
+    color="STATUS_KEMASKINI",
+    facet_col="TAHUN",
     text="Jumlah",
-    title="Trend Pergerakan Baucar Mengikut Bulan",
+    title="Trend Status Baucar Mengikut Bulan",
     category_orders={"BULAN": bulan_order}
 )
 
 st.plotly_chart(fig_bulan, use_container_width=True)
 
-st.subheader("Senarai Perjalanan Baucar")
+tab1, tab2, tab3 = st.tabs([
+    "Semua Baucar",
+    "Telah IN / OUT",
+    "Belum Dikemaskini"
+])
 
 papar_cols = [
-    "DATE", "IN_OUT", "BULAN_TAHUN", "NO_BAUCAR",
-    "NAMA", "ID", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL"
+    "BULAN_TAHUN", "NO_BAUCAR", "NAMA", "ID",
+    "STATUS_KEMASKINI", "DATE", "NO_KOTAK",
+    "KOTAK_TAMBAHAN", "EMAIL"
 ]
-
 papar_cols = [col for col in papar_cols if col in df_filter.columns]
 
-st.dataframe(
-    df_filter[papar_cols],
-    use_container_width=True,
-    hide_index=True
-)
+with tab1:
+    st.dataframe(df_filter[papar_cols], use_container_width=True, hide_index=True)
+
+with tab2:
+    telah = df_filter[df_filter["STATUS_KEMASKINI"].isin(["IN", "OUT"])]
+    st.dataframe(telah[papar_cols], use_container_width=True, hide_index=True)
+
+with tab3:
+    belum = df_filter[df_filter["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]
+    st.dataframe(belum[papar_cols], use_container_width=True, hide_index=True)
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
 
