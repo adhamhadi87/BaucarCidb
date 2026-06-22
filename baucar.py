@@ -7,13 +7,11 @@ st.set_page_config(page_title="Baucar CIDB", page_icon="📁", layout="wide")
 BAUCAR_CSV_URL = "https://docs.google.com/spreadsheets/d/1UmIsdnsz46lcPdLIEhTjry6E-ZOrNS3YDXKIqkxZV1s/export?format=csv&gid=1370653594"
 DATA_APP_CSV_URL = "https://docs.google.com/spreadsheets/d/1UmIsdnsz46lcPdLIEhTjry6E-ZOrNS3YDXKIqkxZV1s/export?format=csv&gid=1657707039"
 
-
 @st.cache_data(ttl=300)
 def load_csv(url):
     df = pd.read_csv(url)
     df.columns = df.columns.astype(str).str.strip()
     return df
-
 
 def clean_no_baucar(series):
     return (
@@ -24,11 +22,9 @@ def clean_no_baucar(series):
         .replace(["NAN", "NONE", ""], pd.NA)
     )
 
-
 def clean_id(series):
     numeric_id = pd.to_numeric(series, errors="coerce")
     return numeric_id.astype("Int64").astype(str).replace("<NA>", "")
-
 
 def standardize_bulan(series):
     bulan_map = {
@@ -45,16 +41,13 @@ def standardize_bulan(series):
         "NOV": "NOV", "NOVEMBER": "NOV",
         "DIS": "DIS", "DEC": "DIS", "DECEMBER": "DIS"
     }
-
     extracted = series.astype(str).str.extract(r"([A-Za-zÀ-ÿ]+)")[0]
     return extracted.astype(str).str.upper().str.strip().map(bulan_map)
-
 
 bulan_order = [
     "JAN", "FEB", "MAC", "APR", "MEI", "JUN",
     "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"
 ]
-
 
 baucar = load_csv(BAUCAR_CSV_URL)
 data_app = load_csv(DATA_APP_CSV_URL)
@@ -94,28 +87,25 @@ if missing_data_app:
     st.write("Column DATA APP yang dibaca:", list(data_app.columns))
     st.stop()
 
-baucar["NO_BAUCAR"] = clean_no_baucar(baucar["NO_BAUCAR"])
-data_app["NO_BAUCAR"] = clean_no_baucar(data_app["NO_BAUCAR"])
-
-baucar = baucar.dropna(subset=["NO_BAUCAR"])
-data_app = data_app.dropna(subset=["NO_BAUCAR"])
-
+baucar["NO_BAUCAR_CLEAN"] = clean_no_baucar(baucar["NO_BAUCAR"])
 baucar["ID"] = clean_id(baucar["ID"])
 baucar["TAHUN"] = baucar["BULAN_TAHUN"].astype(str).str.extract(r"(\d{4})")
 baucar["BULAN"] = standardize_bulan(baucar["BULAN_TAHUN"])
+baucar["BULAN"] = pd.Categorical(baucar["BULAN"], categories=bulan_order, ordered=True)
 
+data_app["NO_BAUCAR_CLEAN"] = clean_no_baucar(data_app["NO_BAUCAR"])
+data_app = data_app.dropna(subset=["NO_BAUCAR_CLEAN"])
 data_app["IN_OUT"] = data_app["IN_OUT"].fillna("").astype(str).str.upper().str.strip()
 
 if "DATE" in data_app.columns:
     data_app["DATE"] = pd.to_datetime(data_app["DATE"], errors="coerce", dayfirst=True)
     data_app = data_app.sort_values("DATE")
 
-# Ambil 1 rekod terkini sahaja untuk setiap NO BAUCAR
-latest_app = data_app.drop_duplicates(subset=["NO_BAUCAR"], keep="last")
+latest_app = data_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last")
 
 df = baucar.merge(
     latest_app,
-    on="NO_BAUCAR",
+    on="NO_BAUCAR_CLEAN",
     how="left",
     suffixes=("", "_APP")
 )
@@ -136,8 +126,6 @@ df["STATUS_KEMASKINI"] = df["STATUS_KEMASKINI"].replace({
     "NAN": "BELUM DIKEMASKINI",
     "NONE": "BELUM DIKEMASKINI"
 })
-
-df["BULAN"] = pd.Categorical(df["BULAN"], categories=bulan_order, ordered=True)
 
 st.markdown("""
 <div style="text-align:center; padding-top:20px; padding-bottom:20px;">
@@ -195,12 +183,7 @@ st.divider()
 c1, c2 = st.columns(2)
 
 with c1:
-    chart_status = (
-        df_filter.groupby("STATUS_KEMASKINI")
-        .size()
-        .reset_index(name="Jumlah")
-    )
-
+    chart_status = df_filter.groupby("STATUS_KEMASKINI").size().reset_index(name="Jumlah")
     fig_status = px.pie(
         chart_status,
         names="STATUS_KEMASKINI",
@@ -217,7 +200,6 @@ with c2:
         .reset_index(name="Jumlah")
         .sort_values("Jumlah", ascending=False)
     )
-
     fig_id = px.bar(
         chart_id,
         x="ID",
@@ -277,6 +259,12 @@ with tab2:
 with tab3:
     belum = df_filter[df_filter["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]
     st.dataframe(belum[papar_cols], use_container_width=True, hide_index=True)
+
+with st.expander("Semakan kiraan data"):
+    st.write("Jumlah baris BAUCAR dibaca:", len(baucar))
+    st.write("Jumlah NO BAUCAR kosong dalam BAUCAR:", baucar["NO_BAUCAR_CLEAN"].isna().sum())
+    st.write("Jumlah NO BAUCAR unik dalam BAUCAR:", baucar["NO_BAUCAR_CLEAN"].nunique())
+    st.write("Jumlah baris selepas filter:", len(df_filter))
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
 
