@@ -7,11 +7,13 @@ st.set_page_config(page_title="Baucar CIDB", page_icon="📁", layout="wide")
 BAUCAR_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1370653594&single=true&output=csv"
 DATA_APP_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1657707039&single=true&output=csv"
 
+
 @st.cache_data(ttl=300)
 def load_csv(url):
     df = pd.read_csv(url)
     df.columns = df.columns.astype(str).str.strip()
     return df
+
 
 def clean_no_baucar(series):
     return (
@@ -22,9 +24,15 @@ def clean_no_baucar(series):
         .replace(["NAN", "NONE", ""], pd.NA)
     )
 
+
 def clean_id(series):
-    numeric_id = pd.to_numeric(series, errors="coerce")
-    return numeric_id.astype("Int64").astype(str).replace("<NA>", "TIADA ID")
+    return (
+        pd.to_numeric(series, errors="coerce")
+        .astype("Int64")
+        .astype(str)
+        .replace("<NA>", "")
+    )
+
 
 def standardize_bulan(series):
     bulan_map = {
@@ -41,15 +49,16 @@ def standardize_bulan(series):
         "NOV": "NOV", "NOVEMBER": "NOV",
         "DIS": "DIS", "DEC": "DIS", "DECEMBER": "DIS"
     }
+
     extracted = series.astype(str).str.extract(r"([A-Za-zÀ-ÿ]+)")[0]
-    bulan = extracted.astype(str).str.upper().str.strip().map(bulan_map)
-    return bulan.fillna("TIADA BULAN")
+    return extracted.astype(str).str.upper().str.strip().map(bulan_map)
+
 
 bulan_order = [
     "JAN", "FEB", "MAC", "APR", "MEI", "JUN",
-    "JUL", "OGO", "SEP", "OKT", "NOV", "DIS",
-    "TIADA BULAN"
+    "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"
 ]
+
 
 baucar = load_csv(BAUCAR_CSV_URL)
 data_app = load_csv(DATA_APP_CSV_URL)
@@ -73,9 +82,25 @@ data_app = data_app.rename(columns={
     "EMAIL": "EMAIL"
 })
 
+required_baucar = ["BULAN_TAHUN", "NO_BAUCAR", "NAMA", "ID"]
+required_data_app = ["NO_BAUCAR", "IN_OUT"]
+
+missing_baucar = [c for c in required_baucar if c not in baucar.columns]
+missing_data_app = [c for c in required_data_app if c not in data_app.columns]
+
+if missing_baucar:
+    st.error(f"Column tidak dijumpai dalam sheet BAUCAR: {missing_baucar}")
+    st.write("Column BAUCAR yang dibaca:", list(baucar.columns))
+    st.stop()
+
+if missing_data_app:
+    st.error(f"Column tidak dijumpai dalam sheet DATA APP: {missing_data_app}")
+    st.write("Column DATA APP yang dibaca:", list(data_app.columns))
+    st.stop()
+
 baucar["NO_BAUCAR_CLEAN"] = clean_no_baucar(baucar["NO_BAUCAR"])
 baucar["ID"] = clean_id(baucar["ID"])
-baucar["TAHUN"] = baucar["BULAN_TAHUN"].astype(str).str.extract(r"(\d{4})").fillna("TIADA TAHUN")
+baucar["TAHUN"] = baucar["BULAN_TAHUN"].astype(str).str.extract(r"(\d{4})")
 baucar["BULAN"] = standardize_bulan(baucar["BULAN_TAHUN"])
 
 data_app["NO_BAUCAR_CLEAN"] = clean_no_baucar(data_app["NO_BAUCAR"])
@@ -121,13 +146,12 @@ st.markdown("""
 
 st.sidebar.title("Filter")
 
-tahun_order = ["2024", "2025", "2026", "TIADA TAHUN"]
-tahun_list = [x for x in tahun_order if x in df["TAHUN"].astype(str).unique()]
-bulan_list = [b for b in bulan_order if b in df["BULAN"].astype(str).unique()]
+tahun_list = sorted(df["TAHUN"].dropna().astype(str).unique())
+bulan_list = [b for b in bulan_order if b in df["BULAN"].dropna().astype(str).unique()]
 status_list = ["IN", "OUT", "BELUM DIKEMASKINI"]
 
 id_list = sorted(
-    df["ID"].dropna().astype(str).unique(),
+    [x for x in df["ID"].dropna().astype(str).unique() if x.strip() != ""],
     key=lambda x: int(x) if x.isdigit() else 999999999
 )
 
@@ -142,8 +166,10 @@ df_filter = df[
     df["TAHUN"].astype(str).isin(tahun)
     & df["BULAN"].astype(str).isin(bulan)
     & df["STATUS_KEMASKINI"].astype(str).isin(status)
-    & df["ID"].astype(str).isin(id_filter)
 ]
+
+if id_filter:
+    df_filter = df_filter[df_filter["ID"].astype(str).isin(id_filter)]
 
 if carian:
     df_filter = df_filter[
@@ -186,6 +212,7 @@ with c2:
         .reset_index(name="Jumlah")
         .sort_values("Jumlah", ascending=False)
     )
+
     fig_id = px.bar(
         chart_id,
         x="ID",
@@ -197,7 +224,7 @@ with c2:
     st.plotly_chart(fig_id, use_container_width=True)
 
 chart_bulan = (
-    df_filter.groupby(["TAHUN", "BULAN", "STATUS_KEMASKINI"])
+    df_filter.groupby(["TAHUN", "BULAN", "STATUS_KEMASKINI"], observed=True)
     .size()
     .reset_index(name="Jumlah")
 )
@@ -250,10 +277,7 @@ with st.expander("Semakan kiraan data"):
     st.write("Jumlah row BAUCAR dibaca:", len(baucar))
     st.write("Jumlah row selepas merge:", len(df))
     st.write("Jumlah row selepas filter:", len(df_filter))
-    st.write("NO BAUCAR kosong:", baucar["NO_BAUCAR_CLEAN"].isna().sum())
-    st.write("TIADA TAHUN:", len(df[df["TAHUN"] == "TIADA TAHUN"]))
-    st.write("TIADA BULAN:", len(df[df["BULAN"] == "TIADA BULAN"]))
-    st.write("TIADA ID:", len(df[df["ID"] == "TIADA ID"]))
+    st.write("Jumlah ID kosong:", (df["ID"].astype(str).str.strip() == "").sum())
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
 
