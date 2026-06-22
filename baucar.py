@@ -314,17 +314,52 @@ for key in ["tahun_filter", "bulan_filter", "status_filter", "id_filter"]:
         set_default_filters()
         break
 
+
+def pill_label(value, key):
+    selected = st.session_state.get(key, [])
+    if value in selected:
+        return f"✓ {value}"
+    return value
+
 st.sidebar.markdown("#### Tahun")
-tahun = st.sidebar.pills("Tahun", tahun_list, selection_mode="multi", key="tahun_filter", label_visibility="collapsed")
+tahun = st.sidebar.pills(
+    "Tahun",
+    tahun_list,
+    selection_mode="multi",
+    key="tahun_filter",
+    label_visibility="collapsed",
+    format_func=lambda x: pill_label(x, "tahun_filter")
+)
 
 st.sidebar.markdown("#### Bulan")
-bulan = st.sidebar.pills("Bulan", bulan_list, selection_mode="multi", key="bulan_filter", label_visibility="collapsed")
+bulan = st.sidebar.pills(
+    "Bulan",
+    bulan_list,
+    selection_mode="multi",
+    key="bulan_filter",
+    label_visibility="collapsed",
+    format_func=lambda x: pill_label(x, "bulan_filter")
+)
 
 st.sidebar.markdown("#### Status")
-status = st.sidebar.pills("Status", status_list, selection_mode="multi", key="status_filter", label_visibility="collapsed")
+status = st.sidebar.pills(
+    "Status",
+    status_list,
+    selection_mode="multi",
+    key="status_filter",
+    label_visibility="collapsed",
+    format_func=lambda x: pill_label(x, "status_filter")
+)
 
 st.sidebar.markdown("#### Nama / ID")
-id_filter = st.sidebar.pills("Nama / ID", id_options, selection_mode="multi", key="id_filter", label_visibility="collapsed")
+id_filter = st.sidebar.pills(
+    "Nama / ID",
+    id_options,
+    selection_mode="multi",
+    key="id_filter",
+    label_visibility="collapsed",
+    format_func=lambda x: pill_label(x, "id_filter")
+)
 
 st.sidebar.button("Refresh Filter", on_click=set_default_filters, use_container_width=True)
 
