@@ -10,44 +10,18 @@ ID_LOOKUP_FILE = "list ID.xlsx"
 
 st.markdown("""
 <style>
-/* Sidebar mirror/glow style */
-section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
+button[aria-pressed="true"] {
+    background: linear-gradient(135deg, #e0f2fe, #ffffff, #bae6fd) !important;
+    border: 1px solid rgba(14, 165, 233, 0.65) !important;
+    box-shadow: 0 0 12px rgba(14, 165, 233, 0.45) !important;
+    font-weight: 700 !important;
 }
-
-section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
-    border-radius: 14px;
-    border: 1px solid rgba(30, 144, 255, 0.25);
-    background: rgba(255, 255, 255, 0.75);
-    box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.9),
-        0 6px 18px rgba(30,144,255,0.08);
-    backdrop-filter: blur(8px);
-}
-
-section[data-testid="stSidebar"] span[data-baseweb="tag"] {
-    border-radius: 999px;
-    background: linear-gradient(135deg, #dff3ff 0%, #ffffff 45%, #bfe7ff 100%);
-    color: #064e7a;
-    border: 1px solid rgba(14, 165, 233, 0.35);
-    box-shadow:
-        0 0 8px rgba(14, 165, 233, 0.35),
-        inset 0 1px 1px rgba(255,255,255,0.95);
-    font-weight: 600;
-}
-
-section[data-testid="stSidebar"] span[data-baseweb="tag"]::before {
+button[aria-pressed="true"]::before {
     content: "✓ ";
-    color: #0284c7;
     font-weight: 900;
 }
-
-section[data-testid="stSidebar"] button[kind="secondary"] {
-    border-radius: 14px;
-    background: linear-gradient(135deg, #e0f2fe, #ffffff, #bae6fd);
-    border: 1px solid rgba(14, 165, 233, 0.45);
-    box-shadow: 0 0 12px rgba(14, 165, 233, 0.25);
-    font-weight: 700;
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -212,10 +186,10 @@ for key in ["tahun_filter", "bulan_filter", "status_filter", "id_filter"]:
         set_default_filters()
         break
 
-tahun = st.sidebar.multiselect("Tahun", tahun_list, key="tahun_filter")
-bulan = st.sidebar.multiselect("Bulan", bulan_list, key="bulan_filter")
-status = st.sidebar.multiselect("Status", status_list, key="status_filter")
-id_filter = st.sidebar.multiselect("Nama / ID", id_options, key="id_filter")
+tahun = st.sidebar.pills("Tahun", tahun_list, selection_mode="multi", key="tahun_filter")
+bulan = st.sidebar.pills("Bulan", bulan_list, selection_mode="multi", key="bulan_filter")
+status = st.sidebar.pills("Status", status_list, selection_mode="multi", key="status_filter")
+id_filter = st.sidebar.pills("Nama / ID", id_options, selection_mode="multi", key="id_filter")
 
 st.sidebar.button("Refresh Filter", on_click=set_default_filters, use_container_width=True)
 
@@ -262,10 +236,7 @@ fig_id_total = px.bar(
 )
 
 fig_id_total.update_xaxes(type="category")
-fig_id_total.update_layout(
-    xaxis_title="ID",
-    yaxis_title="Total Baucar"
-)
+fig_id_total.update_layout(xaxis_title="ID", yaxis_title="Total Baucar")
 
 st.plotly_chart(fig_id_total, use_container_width=True)
 
