@@ -68,8 +68,8 @@ baucar = baucar.rename(columns={
 data_app = data_app.rename(columns={
     "DATE": "DATE",
     "IN/OUT": "IN_OUT",
-    "BULAN /TAHUN": "BULAN_TAHUN",
-    "BULAN/TAHUN": "BULAN_TAHUN",
+    "BULAN /TAHUN": "BULAN_TAHUN_APP",
+    "BULAN/TAHUN": "BULAN_TAHUN_APP",
     "NO. BAUCAR": "NO_BAUCAR",
     "NO BAUCAR": "NO_BAUCAR",
     "NO KOTAK": "NO_KOTAK",
@@ -77,8 +77,8 @@ data_app = data_app.rename(columns={
     "EMAIL": "EMAIL"
 })
 
-required_baucar = ["NO_BAUCAR", "NAMA", "ID", "BULAN_TAHUN"]
-required_data_app = ["NO_BAUCAR"]
+required_baucar = ["BULAN_TAHUN", "NO_BAUCAR", "NAMA", "ID"]
+required_data_app = ["NO_BAUCAR", "IN_OUT"]
 
 missing_baucar = [c for c in required_baucar if c not in baucar.columns]
 missing_data_app = [c for c in required_data_app if c not in data_app.columns]
@@ -94,41 +94,41 @@ if missing_data_app:
     st.stop()
 
 baucar["NO_BAUCAR"] = clean_no_baucar(baucar["NO_BAUCAR"])
+data_app["NO_BAUCAR"] = clean_no_baucar(data_app["NO_BAUCAR"])
+
+baucar = baucar.dropna(subset=["NO_BAUCAR"])
+data_app = data_app.dropna(subset=["NO_BAUCAR"])
+
 baucar["ID"] = clean_id(baucar["ID"])
 baucar["TAHUN"] = baucar["BULAN_TAHUN"].astype(str).str.extract(r"(\d{4})")
 baucar["BULAN"] = standardize_bulan(baucar["BULAN_TAHUN"])
 
-data_app["NO_BAUCAR"] = clean_no_baucar(data_app["NO_BAUCAR"])
-
-if "IN_OUT" not in data_app.columns:
-    data_app["IN_OUT"] = ""
-
 data_app["IN_OUT"] = data_app["IN_OUT"].fillna("").astype(str).str.upper().str.strip()
-data_app.loc[~data_app["IN_OUT"].isin(["IN", "OUT"]), "IN_OUT"] = "BELUM DIKEMASKINI"
-
-if "BULAN_TAHUN" in data_app.columns:
-    data_app["TAHUN_APP"] = data_app["BULAN_TAHUN"].astype(str).str.extract(r"(\d{4})")
-    data_app["BULAN_APP"] = standardize_bulan(data_app["BULAN_TAHUN"])
-
-latest_app = (
-    data_app
-    .dropna(subset=["NO_BAUCAR"])
-    .drop_duplicates(subset=["NO_BAUCAR"], keep="last")
-)
 
 df = baucar.merge(
-    latest_app,
+    data_app,
     on="NO_BAUCAR",
     how="left",
     suffixes=("", "_APP")
 )
 
-df["STATUS_KEMASKINI"] = df["IN_OUT"].fillna("BELUM DIKEMASKINI")
-df.loc[~df["STATUS_KEMASKINI"].isin(["IN", "OUT"]), "STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
+df["STATUS_KEMASKINI"] = df["IN_OUT"]
 
-df["IN_OUT"] = df["STATUS_KEMASKINI"]
-df["TAHUN"] = df["TAHUN"].fillna(df.get("TAHUN_APP"))
-df["BULAN"] = df["BULAN"].fillna(df.get("BULAN_APP"))
+df.loc[df["IN_OUT"].isna(), "STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
+
+df["STATUS_KEMASKINI"] = (
+    df["STATUS_KEMASKINI"]
+    .fillna("BELUM DIKEMASKINI")
+    .astype(str)
+    .str.upper()
+    .str.strip()
+)
+
+df["STATUS_KEMASKINI"] = df["STATUS_KEMASKINI"].replace({
+    "": "BELUM DIKEMASKINI",
+    "NAN": "BELUM DIKEMASKINI",
+    "NONE": "BELUM DIKEMASKINI"
+})
 
 df["BULAN"] = pd.Categorical(df["BULAN"], categories=bulan_order, ordered=True)
 
@@ -176,6 +176,7 @@ if carian:
     ]
 
 col1, col2, col3, col4 = st.columns(4)
+
 col1.metric("Total Baucar", len(df_filter))
 col2.metric("Telah Dikemaskini", len(df_filter[df_filter["STATUS_KEMASKINI"].isin(["IN", "OUT"])]))
 col3.metric("Belum Dikemaskini", len(df_filter[df_filter["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]))
@@ -195,11 +196,12 @@ with c1:
         .size()
         .reset_index(name="Jumlah")
     )
+
     fig_status = px.pie(
         chart_status,
         names="STATUS_KEMASKINI",
         values="Jumlah",
-        title="Status Baucar: IN / OUT / Belum Dikemaskini",
+        title="Status Baucar",
         hole=0.4
     )
     st.plotly_chart(fig_status, use_container_width=True)
@@ -211,6 +213,7 @@ with c2:
         .reset_index(name="Jumlah")
         .sort_values("Jumlah", ascending=False)
     )
+
     fig_id = px.bar(
         chart_id,
         x="ID",
@@ -242,15 +245,22 @@ st.plotly_chart(fig_bulan, use_container_width=True)
 
 tab1, tab2, tab3 = st.tabs([
     "Semua Baucar",
-    "Telah IN / OUT",
+    "Telah Dikemaskini",
     "Belum Dikemaskini"
 ])
 
 papar_cols = [
-    "BULAN_TAHUN", "NO_BAUCAR", "NAMA", "ID",
-    "STATUS_KEMASKINI", "DATE", "NO_KOTAK",
-    "KOTAK_TAMBAHAN", "EMAIL"
+    "BULAN_TAHUN",
+    "NO_BAUCAR",
+    "NAMA",
+    "ID",
+    "STATUS_KEMASKINI",
+    "DATE",
+    "NO_KOTAK",
+    "KOTAK_TAMBAHAN",
+    "EMAIL"
 ]
+
 papar_cols = [col for col in papar_cols if col in df_filter.columns]
 
 with tab1:
