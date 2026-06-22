@@ -207,14 +207,18 @@ chart_id_total = (
     .sort_values("Total Baucar", ascending=False)
 )
 
+id_order = chart_id_total["ID_PAPAR"].tolist()
+
 fig_id_total = px.bar(
     chart_id_total,
     x="ID_PAPAR",
     y="Total Baucar",
     text="Total Baucar",
-    title="ID vs Total Baucar"
+    title="Total",
+    category_orders={"ID_PAPAR": id_order}
 )
 
+fig_id_total.update_xaxes(type="category")
 fig_id_total.update_layout(
     xaxis_title="ID",
     yaxis_title="Total Baucar"
