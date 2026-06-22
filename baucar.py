@@ -12,25 +12,21 @@ st.markdown("""
 <style>
 /* =========================
    CIDB RED MIRROR PILL THEME
-   Default kosong = semua data.
-   Bila klik pill, hanya pilihan itu aktif.
-   Klik semula pill aktif untuk untick.
+   Compatible with Streamlit st.pills active/inactive buttons
 ========================= */
 
 .stApp {
     background: linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%);
 }
 
-/* Sidebar */
 section[data-testid="stSidebar"] {
     background:
-        radial-gradient(circle at top left, rgba(239,68,68,0.22), transparent 28%),
-        radial-gradient(circle at bottom right, rgba(248,113,113,0.18), transparent 30%),
+        radial-gradient(circle at top left, rgba(239,68,68,0.24), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(248,113,113,0.20), transparent 30%),
         linear-gradient(180deg, #0f172a 0%, #111827 48%, #1e293b 100%) !important;
     border-right: 1px solid rgba(255,255,255,0.10);
 }
 
-/* Sidebar text */
 section[data-testid="stSidebar"] h1,
 section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3,
@@ -41,78 +37,79 @@ section[data-testid="stSidebar"] span {
     color: #f8fafc !important;
 }
 
-/* Pill container spacing */
-section[data-testid="stSidebar"] div[data-testid="stPills"] {
-    gap: 0.35rem !important;
-}
+/* =========================
+   INACTIVE PILLS
+   Streamlit usually uses stBaseButton-pills for inactive
+========================= */
 
-/* Semua pill: gelap, tulisan jelas */
-section[data-testid="stSidebar"] button[aria-pressed],
-section[data-testid="stSidebar"] div[data-testid="stPills"] button,
-section[data-testid="stSidebar"] div[data-baseweb="button-group"] button {
+section[data-testid="stSidebar"] button[data-testid="stBaseButton-pills"],
+section[data-testid="stSidebar"] button[aria-pressed="false"],
+section[data-testid="stSidebar"] button[aria-selected="false"] {
     background: rgba(255,255,255,0.075) !important;
-    border: 1px solid rgba(255,255,255,0.24) !important;
-    color: #f8fafc !important;
+    border: 1px solid rgba(255,255,255,0.22) !important;
+    color: #e5e7eb !important;
     border-radius: 999px !important;
-    font-weight: 800 !important;
-    padding: 0.45rem 0.85rem !important;
-    margin-bottom: 0.25rem !important;
+    font-weight: 750 !important;
     box-shadow:
         inset 0 1px 0 rgba(255,255,255,0.10),
         0 4px 12px rgba(0,0,0,0.12) !important;
-    transition: all 0.18s ease-in-out !important;
 }
 
-/* Pastikan tulisan dalam pill nampak */
-section[data-testid="stSidebar"] button[aria-pressed] *,
-section[data-testid="stSidebar"] div[data-testid="stPills"] button *,
-section[data-testid="stSidebar"] div[data-baseweb="button-group"] button * {
-    color: #f8fafc !important;
-    font-weight: 800 !important;
+section[data-testid="stSidebar"] button[data-testid="stBaseButton-pills"] *,
+section[data-testid="stSidebar"] button[aria-pressed="false"] *,
+section[data-testid="stSidebar"] button[aria-selected="false"] * {
+    color: #e5e7eb !important;
+    font-weight: 750 !important;
 }
 
-/* Hover */
+/* Hover inactive */
+section[data-testid="stSidebar"] button[data-testid="stBaseButton-pills"]:hover,
 section[data-testid="stSidebar"] button[aria-pressed="false"]:hover,
-section[data-testid="stSidebar"] div[data-testid="stPills"] button:hover,
-section[data-testid="stSidebar"] div[data-baseweb="button-group"] button:hover {
+section[data-testid="stSidebar"] button[aria-selected="false"]:hover {
     border: 1px solid rgba(248,113,113,0.95) !important;
+    color: #ffffff !important;
     box-shadow:
         0 0 12px rgba(239,68,68,0.35),
         inset 0 1px 0 rgba(255,255,255,0.16) !important;
     transform: translateY(-1px);
 }
 
-/* Selected: merah mirror stay */
+/* =========================
+   ACTIVE PILLS
+   Streamlit usually uses stBaseButton-pillsActive for selected
+========================= */
+
+section[data-testid="stSidebar"] button[data-testid="stBaseButton-pillsActive"],
 section[data-testid="stSidebar"] button[aria-pressed="true"],
 section[data-testid="stSidebar"] button[aria-selected="true"],
-section[data-testid="stSidebar"] div[data-testid="stPills"] button[aria-pressed="true"],
-section[data-testid="stSidebar"] div[data-testid="stPills"] button[aria-selected="true"],
-section[data-testid="stSidebar"] div[data-baseweb="button-group"] button[aria-pressed="true"],
-section[data-testid="stSidebar"] div[data-baseweb="button-group"] button[aria-selected="true"] {
-    background: linear-gradient(135deg, #991b1b 0%, #dc2626 42%, #ef4444 72%, #fca5a5 100%) !important;
-    border: 2px solid rgba(255,255,255,0.96) !important;
+section[data-testid="stSidebar"] button[aria-checked="true"] {
+    background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 42%, #ef4444 72%, #fecaca 100%) !important;
+    border: 2px solid #ffffff !important;
     color: #ffffff !important;
-    font-weight: 900 !important;
+    border-radius: 999px !important;
+    font-weight: 950 !important;
     box-shadow:
-        0 0 8px rgba(220,38,38,0.92),
-        0 0 18px rgba(239,68,68,0.78),
-        0 0 34px rgba(248,113,113,0.58),
-        inset 0 1px 0 rgba(255,255,255,0.58),
-        inset 0 -10px 18px rgba(127,29,29,0.24) !important;
+        0 0 10px rgba(220,38,38,0.95),
+        0 0 22px rgba(239,68,68,0.85),
+        0 0 42px rgba(248,113,113,0.65),
+        inset 0 1px 0 rgba(255,255,255,0.72),
+        inset 0 -10px 18px rgba(127,29,29,0.28) !important;
+    transform: translateY(-1px);
 }
 
-/* Text selected */
+section[data-testid="stSidebar"] button[data-testid="stBaseButton-pillsActive"] *,
 section[data-testid="stSidebar"] button[aria-pressed="true"] *,
 section[data-testid="stSidebar"] button[aria-selected="true"] *,
-section[data-testid="stSidebar"] div[data-testid="stPills"] button[aria-pressed="true"] *,
-section[data-testid="stSidebar"] div[data-testid="stPills"] button[aria-selected="true"] * {
+section[data-testid="stSidebar"] button[aria-checked="true"] * {
     color: #ffffff !important;
-    font-weight: 900 !important;
+    font-weight: 950 !important;
 }
 
-/* Tick indicator for selected pill */
+/* Visible tick */
+section[data-testid="stSidebar"] button[data-testid="stBaseButton-pillsActive"]::before,
 section[data-testid="stSidebar"] button[aria-pressed="true"]::before,
-section[data-testid="stSidebar"] button[aria-selected="true"]::before {
+section[data-testid="stSidebar"] button[aria-selected="true"]::before,
+section[data-testid="stSidebar"] button[aria-checked="true"]::before {
     content: "✓ ";
     font-weight: 950;
     color: #ffffff;
@@ -120,7 +117,7 @@ section[data-testid="stSidebar"] button[aria-selected="true"]::before {
 
 /* Refresh button */
 section[data-testid="stSidebar"] div.stButton > button {
-    background: linear-gradient(135deg, #991b1b 0%, #dc2626 52%, #f87171 100%) !important;
+    background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 52%, #f87171 100%) !important;
     color: #ffffff !important;
     border: 1px solid rgba(255,255,255,0.90) !important;
     border-radius: 14px !important;
