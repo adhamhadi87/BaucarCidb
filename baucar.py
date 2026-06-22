@@ -168,13 +168,12 @@ if carian:
         )
     ]
 
-total_2024 = len(baucar[baucar["TAHUN"] == "2024"])
-total_2025 = len(baucar[baucar["TAHUN"] == "2025"])
-total_2026 = len(baucar[baucar["TAHUN"] == "2026"])
-total_semua = len(baucar)
+total_2024 = len(df_filter[df_filter["TAHUN"] == "2024"])
+total_2025 = len(df_filter[df_filter["TAHUN"] == "2025"])
+total_2026 = len(df_filter[df_filter["TAHUN"] == "2026"])
+total_semua = len(df_filter)
 
 col1, col2, col3, col4 = st.columns(4)
-
 col1.metric("Baucar 2024", f"{total_2024:,}")
 col2.metric("Baucar 2025", f"{total_2025:,}")
 col3.metric("Baucar 2026", f"{total_2026:,}")
