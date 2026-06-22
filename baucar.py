@@ -59,7 +59,6 @@ bulan_order = [
     "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"
 ]
 
-
 baucar = load_csv(BAUCAR_CSV_URL)
 data_app = load_csv(DATA_APP_CSV_URL)
 
@@ -81,22 +80,6 @@ data_app = data_app.rename(columns={
     "KOTAK TAMBAHAN": "KOTAK_TAMBAHAN",
     "EMAIL": "EMAIL"
 })
-
-required_baucar = ["BULAN_TAHUN", "NO_BAUCAR", "NAMA", "ID"]
-required_data_app = ["NO_BAUCAR", "IN_OUT"]
-
-missing_baucar = [c for c in required_baucar if c not in baucar.columns]
-missing_data_app = [c for c in required_data_app if c not in data_app.columns]
-
-if missing_baucar:
-    st.error(f"Column tidak dijumpai dalam sheet BAUCAR: {missing_baucar}")
-    st.write("Column BAUCAR yang dibaca:", list(baucar.columns))
-    st.stop()
-
-if missing_data_app:
-    st.error(f"Column tidak dijumpai dalam sheet DATA APP: {missing_data_app}")
-    st.write("Column DATA APP yang dibaca:", list(data_app.columns))
-    st.stop()
 
 baucar["NO_BAUCAR_CLEAN"] = clean_no_baucar(baucar["NO_BAUCAR"])
 baucar["ID"] = clean_id(baucar["ID"])
@@ -129,13 +112,12 @@ df["STATUS_KEMASKINI"] = (
     .astype(str)
     .str.upper()
     .str.strip()
+    .replace({
+        "": "BELUM DIKEMASKINI",
+        "NAN": "BELUM DIKEMASKINI",
+        "NONE": "BELUM DIKEMASKINI"
+    })
 )
-
-df["STATUS_KEMASKINI"] = df["STATUS_KEMASKINI"].replace({
-    "": "BELUM DIKEMASKINI",
-    "NAN": "BELUM DIKEMASKINI",
-    "NONE": "BELUM DIKEMASKINI"
-})
 
 st.markdown("""
 <div style="text-align:center; padding-top:20px; padding-bottom:20px;">
@@ -150,15 +132,22 @@ tahun_list = sorted(df["TAHUN"].dropna().astype(str).unique())
 bulan_list = [b for b in bulan_order if b in df["BULAN"].dropna().astype(str).unique()]
 status_list = ["IN", "OUT", "BELUM DIKEMASKINI"]
 
-id_list = sorted(
-    [x for x in df["ID"].dropna().astype(str).unique() if x.strip() != ""],
+id_values = df["ID"].fillna("").astype(str).unique().tolist()
+id_normal = sorted(
+    [x for x in id_values if x.strip() != ""],
     key=lambda x: int(x) if x.isdigit() else 999999999
 )
+
+id_options = id_normal.copy()
+if "" in id_values:
+    id_options.append("(Blank)")
 
 tahun = st.sidebar.pills("Tahun", tahun_list, default=tahun_list, selection_mode="multi")
 bulan = st.sidebar.pills("Bulan", bulan_list, default=bulan_list, selection_mode="multi")
 status = st.sidebar.pills("Status", status_list, default=status_list, selection_mode="multi")
-id_filter = st.sidebar.pills("ID", id_list, default=id_list, selection_mode="multi")
+id_filter = st.sidebar.pills("ID", id_options, default=id_options, selection_mode="multi")
+
+selected_ids = ["" if x == "(Blank)" else x for x in id_filter]
 
 carian = st.sidebar.text_input("Cari Nama / No Baucar / Email / Kotak")
 
@@ -166,10 +155,8 @@ df_filter = df[
     df["TAHUN"].astype(str).isin(tahun)
     & df["BULAN"].astype(str).isin(bulan)
     & df["STATUS_KEMASKINI"].astype(str).isin(status)
+    & df["ID"].fillna("").astype(str).isin(selected_ids)
 ]
-
-if id_filter:
-    df_filter = df_filter[df_filter["ID"].astype(str).isin(id_filter)]
 
 if carian:
     df_filter = df_filter[
@@ -277,7 +264,7 @@ with st.expander("Semakan kiraan data"):
     st.write("Jumlah row BAUCAR dibaca:", len(baucar))
     st.write("Jumlah row selepas merge:", len(df))
     st.write("Jumlah row selepas filter:", len(df_filter))
-    st.write("Jumlah ID kosong:", (df["ID"].astype(str).str.strip() == "").sum())
+    st.write("Jumlah ID kosong:", (df["ID"].fillna("").astype(str).str.strip() == "").sum())
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
 
