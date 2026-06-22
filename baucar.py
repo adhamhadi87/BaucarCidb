@@ -237,34 +237,43 @@ if missing_lookup:
     st.write("Column list ID.xlsx yang dibaca:", list(id_lookup.columns))
     st.stop()
 
+# =========================
+# Clean master BAUCAR
+# =========================
 baucar["NO_BAUCAR_CLEAN"] = clean_no_baucar(baucar["NO_BAUCAR"])
 baucar["ID"] = clean_text(baucar["ID"])
 baucar["TAHUN"] = baucar["BULAN_TAHUN"].fillna("").astype(str).str.extract(r"(\d{4})")
 baucar["BULAN"] = standardize_bulan(baucar["BULAN_TAHUN"])
 
+# =========================
+# Clean DATA APP
+# =========================
 data_app["NO_BAUCAR_CLEAN"] = clean_no_baucar(data_app["NO_BAUCAR"])
 data_app = data_app[data_app["NO_BAUCAR_CLEAN"] != ""].copy()
 data_app["IN_OUT"] = clean_text(data_app["IN_OUT"]).str.upper()
 data_app.loc[~data_app["IN_OUT"].isin(["IN", "OUT"]), "IN_OUT"] = ""
-
-id_lookup["ID"] = clean_text(id_lookup["ID"])
-id_lookup["NAMA_ID"] = clean_text(id_lookup["NAMA_ID"])
-id_lookup = id_lookup.drop_duplicates(subset=["ID"], keep="first")
 
 if "DATE" in data_app.columns:
     data_app["DATE"] = pd.to_datetime(data_app["DATE"], errors="coerce", dayfirst=True)
     data_app = data_app.sort_values("DATE")
 
 # =========================
-# STATUS LOGIC FINAL
+# Lookup ID
 # =========================
-# DATA APP menentukan status IN / OUT.
-# Jika NO_BAUCAR tiada langsung dalam DATA APP, baru jadi BELUM DIKEMASKINI.
-# Jika ada banyak rekod untuk baucar sama, guna rekod terakhir mengikut DATE.
-latest_app = data_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last").copy()
-latest_app["ADA_DATA_APP"] = True
-latest_app["STATUS_KEMASKINI"] = latest_app["IN_OUT"]
+id_lookup["ID"] = clean_text(id_lookup["ID"])
+id_lookup["NAMA_ID"] = clean_text(id_lookup["NAMA_ID"])
+id_lookup = id_lookup.drop_duplicates(subset=["ID"], keep="first")
 
+# =========================
+# STATUS LOGIC - EXACT REQUIREMENT
+# =========================
+# BAUCAR = master list semua baucar
+# DATA APP = senarai baucar yang telah dikemaskini
+# Jika NO BAUCAR dalam BAUCAR tiada dalam DATA APP => BELUM DIKEMASKINI
+# Jika ada dalam DATA APP => status ikut IN/OUT terakhir DATA APP
+latest_app = data_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last").copy()
+
+latest_app["STATUS_KEMASKINI"] = latest_app["IN_OUT"]
 latest_app.loc[
     ~latest_app["STATUS_KEMASKINI"].isin(["IN", "OUT"]),
     "STATUS_KEMASKINI"
@@ -272,7 +281,7 @@ latest_app.loc[
 
 latest_cols = [
     c for c in [
-        "NO_BAUCAR_CLEAN", "ADA_DATA_APP", "STATUS_KEMASKINI",
+        "NO_BAUCAR_CLEAN", "STATUS_KEMASKINI",
         "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL", "BULAN_TAHUN_APP"
     ]
     if c in latest_app.columns
@@ -281,8 +290,8 @@ latest_cols = [
 df = baucar.merge(latest_app[latest_cols], on="NO_BAUCAR_CLEAN", how="left")
 df = df.merge(id_lookup[["ID", "NAMA_ID"]], on="ID", how="left")
 
-df["ADA_DATA_APP"] = df["ADA_DATA_APP"].fillna(False)
 df["STATUS_KEMASKINI"] = df["STATUS_KEMASKINI"].fillna("BELUM DIKEMASKINI")
+df["ADA_DATA_APP"] = df["STATUS_KEMASKINI"] != "BELUM DIKEMASKINI"
 
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
 df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
@@ -443,21 +452,20 @@ with tab1:
     st.dataframe(df_filter[papar_cols], use_container_width=True, hide_index=True)
 
 with tab2:
-    telah = df_filter[df_filter["ADA_DATA_APP"]]
+    telah = df_filter[df_filter["STATUS_KEMASKINI"].isin(["IN", "OUT", "TELAH DIKEMASKINI"])]
     st.dataframe(telah[papar_cols], use_container_width=True, hide_index=True)
 
 with tab3:
-    belum = df_filter[~df_filter["ADA_DATA_APP"]]
+    belum = df_filter[df_filter["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]
     st.dataframe(belum[papar_cols], use_container_width=True, hide_index=True)
 
 with st.expander("Semakan Status"):
     st.write("Jumlah BAUCAR:", len(baucar))
     st.write("NO BAUCAR unik DATA APP:", data_app["NO_BAUCAR_CLEAN"].nunique())
-    st.write("Total selepas filter:", len(df_filter))
+    st.write("Belum Dikemaskini:", len(df[df["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]))
     st.write("IN:", len(df[df["STATUS_KEMASKINI"] == "IN"]))
     st.write("OUT:", len(df[df["STATUS_KEMASKINI"] == "OUT"]))
-    st.write("BELUM DIKEMASKINI:", len(df[df["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]))
-    st.write("Status lain jika ada:", sorted([x for x in df["STATUS_KEMASKINI"].dropna().unique() if x not in ["IN", "OUT", "BELUM DIKEMASKINI"]]))
+    st.write("Total selepas filter:", len(df_filter))
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
 
