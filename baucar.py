@@ -10,12 +10,48 @@ ID_LOOKUP_FILE = "list ID.xlsx"
 
 st.markdown("""
 <style>
-button[aria-pressed="true"]::before {
+/* Sidebar mirror/glow style */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
+}
+
+section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
+    border-radius: 14px;
+    border: 1px solid rgba(30, 144, 255, 0.25);
+    background: rgba(255, 255, 255, 0.75);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.9),
+        0 6px 18px rgba(30,144,255,0.08);
+    backdrop-filter: blur(8px);
+}
+
+section[data-testid="stSidebar"] span[data-baseweb="tag"] {
+    border-radius: 999px;
+    background: linear-gradient(135deg, #dff3ff 0%, #ffffff 45%, #bfe7ff 100%);
+    color: #064e7a;
+    border: 1px solid rgba(14, 165, 233, 0.35);
+    box-shadow:
+        0 0 8px rgba(14, 165, 233, 0.35),
+        inset 0 1px 1px rgba(255,255,255,0.95);
+    font-weight: 600;
+}
+
+section[data-testid="stSidebar"] span[data-baseweb="tag"]::before {
     content: "✓ ";
+    color: #0284c7;
+    font-weight: 900;
+}
+
+section[data-testid="stSidebar"] button[kind="secondary"] {
+    border-radius: 14px;
+    background: linear-gradient(135deg, #e0f2fe, #ffffff, #bae6fd);
+    border: 1px solid rgba(14, 165, 233, 0.45);
+    box-shadow: 0 0 12px rgba(14, 165, 233, 0.25);
     font-weight: 700;
 }
 </style>
 """, unsafe_allow_html=True)
+
 
 @st.cache_data(ttl=300)
 def load_csv(url):
@@ -23,14 +59,17 @@ def load_csv(url):
     df.columns = df.columns.astype(str).str.strip()
     return df
 
+
 @st.cache_data(ttl=300)
 def load_id_lookup(file_path):
     df = pd.read_excel(file_path, dtype=str)
     df.columns = df.columns.astype(str).str.strip().str.upper()
     return df
 
+
 def clean_text(series):
     return series.fillna("").astype(str).str.strip()
+
 
 def clean_no_baucar(series):
     return (
@@ -40,6 +79,7 @@ def clean_no_baucar(series):
         .str.upper()
         .str.replace(r"\s+", "", regex=True)
     )
+
 
 def standardize_bulan(series):
     bulan_map = {
@@ -58,6 +98,7 @@ def standardize_bulan(series):
     }
     extracted = series.fillna("").astype(str).str.extract(r"([A-Za-zÀ-ÿ]+)")[0]
     return extracted.fillna("").astype(str).str.upper().str.strip().map(bulan_map)
+
 
 bulan_order = ["JAN", "FEB", "MAC", "APR", "MEI", "JUN", "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"]
 
@@ -158,21 +199,23 @@ id_options = (
 if "(Blank)" in id_options:
     id_options = [x for x in id_options if x != "(Blank)"] + ["(Blank)"]
 
+
 def set_default_filters():
     st.session_state["tahun_filter"] = tahun_list
     st.session_state["bulan_filter"] = bulan_list
     st.session_state["status_filter"] = status_list
     st.session_state["id_filter"] = id_options
 
+
 for key in ["tahun_filter", "bulan_filter", "status_filter", "id_filter"]:
     if key not in st.session_state:
         set_default_filters()
         break
 
-tahun = st.sidebar.pills("Tahun", tahun_list, selection_mode="multi", key="tahun_filter")
-bulan = st.sidebar.pills("Bulan", bulan_list, selection_mode="multi", key="bulan_filter")
-status = st.sidebar.pills("Status", status_list, selection_mode="multi", key="status_filter")
-id_filter = st.sidebar.pills("Nama / ID", id_options, selection_mode="multi", key="id_filter")
+tahun = st.sidebar.multiselect("Tahun", tahun_list, key="tahun_filter")
+bulan = st.sidebar.multiselect("Bulan", bulan_list, key="bulan_filter")
+status = st.sidebar.multiselect("Status", status_list, key="status_filter")
+id_filter = st.sidebar.multiselect("Nama / ID", id_options, key="id_filter")
 
 st.sidebar.button("Refresh Filter", on_click=set_default_filters, use_container_width=True)
 
