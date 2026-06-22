@@ -10,17 +10,12 @@ ID_LOOKUP_FILE = "list ID.xlsx"
 
 st.markdown("""
 <style>
-/* =========================
-   CIDB Red Mirror Theme
-   Default kosong = semua data
-   Klik pill = pill aktif sahaja menyala
-========================= */
+/* CIDB RED MIRROR - STRONG CSS */
 
 .stApp {
     background: linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%);
 }
 
-/* Sidebar */
 section[data-testid="stSidebar"] {
     background:
         radial-gradient(circle at top left, rgba(239,68,68,0.22), transparent 28%),
@@ -29,7 +24,6 @@ section[data-testid="stSidebar"] {
     border-right: 1px solid rgba(255,255,255,0.10);
 }
 
-/* Sidebar text */
 section[data-testid="stSidebar"] h1,
 section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3,
@@ -40,27 +34,33 @@ section[data-testid="stSidebar"] span {
     color: #f8fafc !important;
 }
 
-/* Pill base */
+/* Semua pill: neutral dark, tulisan jelas */
+section[data-testid="stSidebar"] div[data-testid="stPills"] button,
+section[data-testid="stSidebar"] div[data-baseweb="button-group"] button,
 section[data-testid="stSidebar"] button[aria-pressed] {
-    border-radius: 999px !important;
-    padding: 0.45rem 0.85rem !important;
-    margin-bottom: 0.25rem !important;
-    transition: all 0.18s ease-in-out !important;
-    backdrop-filter: blur(8px);
-}
-
-/* Unselected pill - dark glass, text visible */
-section[data-testid="stSidebar"] button[aria-pressed="false"] {
     background: rgba(255,255,255,0.075) !important;
     border: 1px solid rgba(255,255,255,0.22) !important;
     color: #f1f5f9 !important;
-    font-weight: 700 !important;
+    border-radius: 999px !important;
+    font-weight: 750 !important;
+    padding: 0.45rem 0.85rem !important;
+    margin-bottom: 0.25rem !important;
     box-shadow:
         inset 0 1px 0 rgba(255,255,255,0.10),
         0 4px 12px rgba(0,0,0,0.12) !important;
+    transition: all 0.18s ease-in-out !important;
 }
 
-/* Unselected hover - red hint */
+section[data-testid="stSidebar"] div[data-testid="stPills"] button *,
+section[data-testid="stSidebar"] div[data-baseweb="button-group"] button *,
+section[data-testid="stSidebar"] button[aria-pressed] * {
+    color: #f1f5f9 !important;
+    font-weight: 750 !important;
+}
+
+/* Hover */
+section[data-testid="stSidebar"] div[data-testid="stPills"] button:hover,
+section[data-testid="stSidebar"] div[data-baseweb="button-group"] button:hover,
 section[data-testid="stSidebar"] button[aria-pressed="false"]:hover {
     border: 1px solid rgba(248,113,113,0.95) !important;
     color: #ffffff !important;
@@ -70,8 +70,13 @@ section[data-testid="stSidebar"] button[aria-pressed="false"]:hover {
     transform: translateY(-1px);
 }
 
-/* Selected pill - red mirror lamp */
-section[data-testid="stSidebar"] button[aria-pressed="true"] {
+/* Selected pill - red mirror */
+section[data-testid="stSidebar"] div[data-testid="stPills"] button[aria-pressed="true"],
+section[data-testid="stSidebar"] div[data-testid="stPills"] button[aria-selected="true"],
+section[data-testid="stSidebar"] div[data-baseweb="button-group"] button[aria-pressed="true"],
+section[data-testid="stSidebar"] div[data-baseweb="button-group"] button[aria-selected="true"],
+section[data-testid="stSidebar"] button[aria-pressed="true"],
+section[data-testid="stSidebar"] button[aria-selected="true"] {
     background: linear-gradient(135deg, #991b1b 0%, #dc2626 42%, #ef4444 72%, #fca5a5 100%) !important;
     border: 1.8px solid rgba(255,255,255,0.96) !important;
     color: #ffffff !important;
@@ -84,15 +89,25 @@ section[data-testid="stSidebar"] button[aria-pressed="true"] {
         inset 0 -10px 18px rgba(127,29,29,0.22) !important;
 }
 
-/* Tick selected */
-section[data-testid="stSidebar"] button[aria-pressed="true"]::before {
+section[data-testid="stSidebar"] div[data-testid="stPills"] button[aria-pressed="true"] *,
+section[data-testid="stSidebar"] div[data-testid="stPills"] button[aria-selected="true"] *,
+section[data-testid="stSidebar"] div[data-baseweb="button-group"] button[aria-pressed="true"] *,
+section[data-testid="stSidebar"] div[data-baseweb="button-group"] button[aria-selected="true"] *,
+section[data-testid="stSidebar"] button[aria-pressed="true"] *,
+section[data-testid="stSidebar"] button[aria-selected="true"] * {
+    color: #ffffff !important;
+    font-weight: 900 !important;
+}
+
+section[data-testid="stSidebar"] button[aria-pressed="true"]::before,
+section[data-testid="stSidebar"] button[aria-selected="true"]::before {
     content: "✓ ";
     font-weight: 950;
     color: #ffffff;
 }
 
 /* Refresh button */
-section[data-testid="stSidebar"] .stButton button {
+section[data-testid="stSidebar"] div.stButton > button {
     background: linear-gradient(135deg, #991b1b 0%, #dc2626 52%, #f87171 100%) !important;
     color: #ffffff !important;
     border: 1px solid rgba(255,255,255,0.90) !important;
@@ -103,14 +118,13 @@ section[data-testid="stSidebar"] .stButton button {
         0 0 24px rgba(248,113,113,0.30) !important;
 }
 
-section[data-testid="stSidebar"] .stButton button:hover {
+section[data-testid="stSidebar"] div.stButton > button:hover {
     transform: translateY(-1px);
     box-shadow:
         0 0 18px rgba(220,38,38,0.50),
         0 0 34px rgba(248,113,113,0.44) !important;
 }
 
-/* KPI cards */
 [data-testid="metric-container"] {
     background: rgba(255,255,255,0.94);
     border: 1px solid rgba(15,23,42,0.08);
@@ -119,7 +133,6 @@ section[data-testid="stSidebar"] .stButton button:hover {
     box-shadow: 0 10px 28px rgba(15,23,42,0.08);
 }
 
-/* Charts */
 [data-testid="stPlotlyChart"] {
     background: rgba(255,255,255,0.88);
     border-radius: 18px;
@@ -127,7 +140,6 @@ section[data-testid="stSidebar"] .stButton button:hover {
     box-shadow: 0 8px 22px rgba(15,23,42,0.06);
 }
 
-/* Dataframe */
 [data-testid="stDataFrame"] {
     border-radius: 16px;
     overflow: hidden;
