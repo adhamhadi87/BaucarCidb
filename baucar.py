@@ -11,9 +11,9 @@ ID_LOOKUP_FILE = "list ID.xlsx"
 st.markdown("""
 <style>
 /* =========================
-   CIDB Filter Theme
+   CIDB Red Mirror Theme
    Default kosong = semua data
-   Klik pill = pill aktif sahaja yang dipilih
+   Klik pill = pill aktif sahaja menyala
 ========================= */
 
 .stApp {
@@ -23,8 +23,8 @@ st.markdown("""
 /* Sidebar */
 section[data-testid="stSidebar"] {
     background:
-        radial-gradient(circle at top left, rgba(16,185,129,0.22), transparent 28%),
-        radial-gradient(circle at bottom right, rgba(6,182,212,0.24), transparent 30%),
+        radial-gradient(circle at top left, rgba(239,68,68,0.22), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(248,113,113,0.18), transparent 30%),
         linear-gradient(180deg, #0f172a 0%, #111827 48%, #1e293b 100%) !important;
     border-right: 1px solid rgba(255,255,255,0.10);
 }
@@ -49,38 +49,39 @@ section[data-testid="stSidebar"] button[aria-pressed] {
     backdrop-filter: blur(8px);
 }
 
-/* Unselected pill - neutral */
+/* Unselected pill - dark glass, text visible */
 section[data-testid="stSidebar"] button[aria-pressed="false"] {
-    background: rgba(255,255,255,0.06) !important;
-    border: 1px solid rgba(255,255,255,0.20) !important;
-    color: #cbd5e1 !important;
-    font-weight: 650 !important;
+    background: rgba(255,255,255,0.075) !important;
+    border: 1px solid rgba(255,255,255,0.22) !important;
+    color: #f1f5f9 !important;
+    font-weight: 700 !important;
     box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.08),
-        0 4px 12px rgba(0,0,0,0.10) !important;
+        inset 0 1px 0 rgba(255,255,255,0.10),
+        0 4px 12px rgba(0,0,0,0.12) !important;
 }
 
-/* Hover */
+/* Unselected hover - red hint */
 section[data-testid="stSidebar"] button[aria-pressed="false"]:hover {
-    border: 1px solid rgba(34,211,238,0.85) !important;
-    color: #f8fafc !important;
+    border: 1px solid rgba(248,113,113,0.95) !important;
+    color: #ffffff !important;
     box-shadow:
-        0 0 12px rgba(34,211,238,0.28),
-        inset 0 1px 0 rgba(255,255,255,0.15) !important;
+        0 0 12px rgba(239,68,68,0.35),
+        inset 0 1px 0 rgba(255,255,255,0.16) !important;
     transform: translateY(-1px);
 }
 
-/* Selected pill - lamp/glow */
+/* Selected pill - red mirror lamp */
 section[data-testid="stSidebar"] button[aria-pressed="true"] {
-    background: linear-gradient(135deg, #2563eb 0%, #06b6d4 50%, #10b981 100%) !important;
-    border: 1.5px solid rgba(255,255,255,0.95) !important;
-    color: white !important;
-    font-weight: 850 !important;
+    background: linear-gradient(135deg, #991b1b 0%, #dc2626 42%, #ef4444 72%, #fca5a5 100%) !important;
+    border: 1.8px solid rgba(255,255,255,0.96) !important;
+    color: #ffffff !important;
+    font-weight: 900 !important;
     box-shadow:
-        0 0 8px rgba(37,99,235,0.80),
-        0 0 18px rgba(6,182,212,0.70),
-        0 0 34px rgba(16,185,129,0.55),
-        inset 0 1px 0 rgba(255,255,255,0.42) !important;
+        0 0 8px rgba(220,38,38,0.88),
+        0 0 18px rgba(239,68,68,0.72),
+        0 0 34px rgba(248,113,113,0.55),
+        inset 0 1px 0 rgba(255,255,255,0.55),
+        inset 0 -10px 18px rgba(127,29,29,0.22) !important;
 }
 
 /* Tick selected */
@@ -92,21 +93,21 @@ section[data-testid="stSidebar"] button[aria-pressed="true"]::before {
 
 /* Refresh button */
 section[data-testid="stSidebar"] .stButton button {
-    background: linear-gradient(135deg, #facc15 0%, #10b981 55%, #06b6d4 100%) !important;
-    color: #082f49 !important;
-    border: 1px solid rgba(255,255,255,0.85) !important;
+    background: linear-gradient(135deg, #991b1b 0%, #dc2626 52%, #f87171 100%) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255,255,255,0.90) !important;
     border-radius: 14px !important;
     font-weight: 900 !important;
     box-shadow:
-        0 0 14px rgba(250,204,21,0.30),
-        0 0 24px rgba(6,182,212,0.28) !important;
+        0 0 14px rgba(220,38,38,0.36),
+        0 0 24px rgba(248,113,113,0.30) !important;
 }
 
 section[data-testid="stSidebar"] .stButton button:hover {
     transform: translateY(-1px);
     box-shadow:
-        0 0 18px rgba(250,204,21,0.45),
-        0 0 34px rgba(6,182,212,0.40) !important;
+        0 0 18px rgba(220,38,38,0.50),
+        0 0 34px rgba(248,113,113,0.44) !important;
 }
 
 /* KPI cards */
