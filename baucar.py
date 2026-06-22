@@ -49,7 +49,6 @@ def standardize_bulan(series):
         "NOV": "NOV", "NOVEMBER": "NOV",
         "DIS": "DIS", "DEC": "DIS", "DECEMBER": "DIS"
     }
-
     extracted = series.astype(str).str.extract(r"([A-Za-zÀ-ÿ]+)")[0]
     return extracted.astype(str).str.upper().str.strip().map(bulan_map)
 
@@ -175,9 +174,28 @@ col1, col2, col3, col4 = st.columns(4)
 col1.metric("Baucar 2024", f"{total_2024:,}")
 col2.metric("Baucar 2025", f"{total_2025:,}")
 col3.metric("Baucar 2026", f"{total_2026:,}")
-col4.metric("Total Keseluruhan Baucar", f"{total_semua:,}")
+col4.metric("Total Baucar", f"{total_semua:,}")
 
 st.divider()
+
+chart_id_total = (
+    df_filter.groupby("ID")
+    .size()
+    .reset_index(name="Total Baucar")
+    .sort_values("Total Baucar", ascending=False)
+)
+
+chart_id_total["ID"] = chart_id_total["ID"].replace("", "(Blank)")
+
+fig_id_total = px.bar(
+    chart_id_total,
+    x="ID",
+    y="Total Baucar",
+    text="Total Baucar",
+    title="ID vs Total Baucar"
+)
+
+st.plotly_chart(fig_id_total, use_container_width=True)
 
 c1, c2 = st.columns(2)
 
@@ -193,41 +211,22 @@ with c1:
     st.plotly_chart(fig_status, use_container_width=True)
 
 with c2:
-    chart_id = (
-        df_filter.groupby(["ID", "STATUS_KEMASKINI"])
+    chart_bulan = (
+        df_filter.groupby(["TAHUN", "BULAN", "STATUS_KEMASKINI"], observed=True)
         .size()
         .reset_index(name="Jumlah")
-        .sort_values("Jumlah", ascending=False)
     )
 
-    fig_id = px.bar(
-        chart_id,
-        x="ID",
+    fig_bulan = px.bar(
+        chart_bulan,
+        x="BULAN",
         y="Jumlah",
         color="STATUS_KEMASKINI",
         text="Jumlah",
-        title="Status Baucar Mengikut ID"
+        title="Status Baucar Mengikut Bulan",
+        category_orders={"BULAN": bulan_order}
     )
-    st.plotly_chart(fig_id, use_container_width=True)
-
-chart_bulan = (
-    df_filter.groupby(["TAHUN", "BULAN", "STATUS_KEMASKINI"], observed=True)
-    .size()
-    .reset_index(name="Jumlah")
-)
-
-fig_bulan = px.bar(
-    chart_bulan,
-    x="BULAN",
-    y="Jumlah",
-    color="STATUS_KEMASKINI",
-    facet_col="TAHUN",
-    text="Jumlah",
-    title="Trend Status Baucar Mengikut Bulan",
-    category_orders={"BULAN": bulan_order}
-)
-
-st.plotly_chart(fig_bulan, use_container_width=True)
+    st.plotly_chart(fig_bulan, use_container_width=True)
 
 tab1, tab2, tab3 = st.tabs([
     "Semua Baucar",
