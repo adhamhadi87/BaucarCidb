@@ -128,6 +128,9 @@ df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
 df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
 df.loc[df["ID_FILTER_LABEL"].fillna("").astype(str).str.strip() == "", "ID_FILTER_LABEL"] = "(Blank)"
 
+df["ID_CHART"] = df["ID"].fillna("").astype(str).str.strip()
+df.loc[df["ID_CHART"] == "", "ID_CHART"] = "(Blank)"
+
 st.markdown("""
 <div style="text-align:center; padding-top:20px; padding-bottom:20px;">
     <h1 style="font-size:56px;">Baucar CIDB</h1>
@@ -153,27 +156,23 @@ id_options = (
 if "(Blank)" in id_options:
     id_options = [x for x in id_options if x != "(Blank)"] + ["(Blank)"]
 
-for key, values in {
-    "tahun_filter": tahun_list,
-    "bulan_filter": bulan_list,
-    "status_filter": status_list,
-    "id_filter": id_options,
-}.items():
-    if key not in st.session_state:
-        st.session_state[key] = values
-
-def refresh_filter():
+def set_default_filters():
     st.session_state["tahun_filter"] = tahun_list
     st.session_state["bulan_filter"] = bulan_list
     st.session_state["status_filter"] = status_list
     st.session_state["id_filter"] = id_options
 
-tahun = st.sidebar.pills("Tahun", tahun_list, default=st.session_state["tahun_filter"], selection_mode="multi", key="tahun_filter")
-bulan = st.sidebar.pills("Bulan", bulan_list, default=st.session_state["bulan_filter"], selection_mode="multi", key="bulan_filter")
-status = st.sidebar.pills("Status", status_list, default=st.session_state["status_filter"], selection_mode="multi", key="status_filter")
-id_filter = st.sidebar.pills("Nama / ID", id_options, default=st.session_state["id_filter"], selection_mode="multi", key="id_filter")
+for key in ["tahun_filter", "bulan_filter", "status_filter", "id_filter"]:
+    if key not in st.session_state:
+        set_default_filters()
+        break
 
-st.sidebar.button("Refresh Filter", on_click=refresh_filter, use_container_width=True)
+tahun = st.sidebar.pills("Tahun", tahun_list, selection_mode="multi", key="tahun_filter")
+bulan = st.sidebar.pills("Bulan", bulan_list, selection_mode="multi", key="bulan_filter")
+status = st.sidebar.pills("Status", status_list, selection_mode="multi", key="status_filter")
+id_filter = st.sidebar.pills("Nama / ID", id_options, selection_mode="multi", key="id_filter")
+
+st.sidebar.button("Refresh Filter", on_click=set_default_filters, use_container_width=True)
 
 df_filter = df[
     df["TAHUN"].astype(str).isin(tahun)
@@ -196,7 +195,7 @@ col4.metric("Total Baucar", f"{total_semua:,}")
 st.divider()
 
 chart_id_total = (
-    df_filter.groupby("ID_FILTER_LABEL")
+    df_filter.groupby("ID_CHART")
     .size()
     .reset_index(name="Total Baucar")
     .sort_values("Total Baucar", ascending=False)
@@ -204,11 +203,13 @@ chart_id_total = (
 
 fig_id_total = px.bar(
     chart_id_total,
-    x="ID_FILTER_LABEL",
+    x="ID_CHART",
     y="Total Baucar",
     text="Total Baucar",
-    title="Nama / ID vs Total Baucar"
+    title="ID vs Total Baucar"
 )
+
+fig_id_total.update_layout(xaxis_title="ID", yaxis_title="Total Baucar")
 
 st.plotly_chart(fig_id_total, use_container_width=True)
 
