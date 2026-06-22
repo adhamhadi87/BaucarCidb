@@ -161,6 +161,21 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 button[data-baseweb="tab"] {
     font-weight: 700;
 }
+
+/* Compact layout so KPI and chart fit better in one page */
+.block-container {
+    padding-top: 0.8rem !important;
+    padding-bottom: 1rem !important;
+    max-width: 1500px !important;
+}
+
+[data-testid="stMetricValue"] {
+    font-size: 2.05rem !important;
+}
+
+[data-testid="metric-container"] {
+    padding: 12px 16px !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -287,9 +302,9 @@ df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
 df.loc[df["ID_FILTER_LABEL"].fillna("").astype(str).str.strip() == "", "ID_FILTER_LABEL"] = "(Blank)"
 
 st.markdown("""
-<div style="text-align:center; padding-top:20px; padding-bottom:20px;">
-    <h1 style="font-size:56px;">Baucar CIDB</h1>
-    <p style="font-size:22px; color:gray;">Sistem Pengurusan Keluar Masuk Baucar</p>
+<div style="text-align:center; padding-top:0px; padding-bottom:8px;">
+    <h1 style="font-size:46px; margin-bottom:2px;">E-FILING BKA</h1>
+    <p style="font-size:18px; color:gray; margin-top:0px;">Sistem Pengurusan Keluar Masuk Baucar</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -363,7 +378,7 @@ col2.metric("Baucar 2025", f"{total_2025:,}")
 col3.metric("Baucar 2026", f"{total_2026:,}")
 col4.metric("Total Baucar", f"{total_semua:,}")
 
-st.divider()
+st.markdown("<hr style='margin: 0.5rem 0 1rem 0;'>", unsafe_allow_html=True)
 
 chart_id_df = df_filter.copy()
 chart_id_df["ID_PAPAR"] = chart_id_df["ID"].fillna("").astype(str).str.strip()
@@ -388,7 +403,13 @@ fig_id_total = px.bar(
 )
 
 fig_id_total.update_xaxes(type="category")
-fig_id_total.update_layout(xaxis_title="ID", yaxis_title="Total Baucar")
+fig_id_total.update_layout(
+    xaxis_title="ID",
+    yaxis_title="Total Baucar",
+    height=430,
+    margin=dict(l=35, r=20, t=45, b=45),
+    title=dict(font=dict(size=18))
+)
 
 st.plotly_chart(fig_id_total, use_container_width=True)
 
@@ -403,6 +424,7 @@ with c1:
         title="Status Baucar",
         hole=0.4
     )
+    fig_status.update_layout(height=360, margin=dict(l=20, r=20, t=45, b=20))
     st.plotly_chart(fig_status, use_container_width=True)
 
 with c2:
@@ -421,6 +443,7 @@ with c2:
         title="Status Baucar Mengikut Bulan",
         category_orders={"BULAN": bulan_order}
     )
+    fig_bulan.update_layout(height=360, margin=dict(l=30, r=20, t=45, b=35))
     st.plotly_chart(fig_bulan, use_container_width=True)
 
 tab1, tab2, tab3 = st.tabs(["Semua Baucar", "Telah Dikemaskini", "Belum Dikemaskini"])
