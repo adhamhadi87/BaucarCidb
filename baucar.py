@@ -115,21 +115,23 @@ df = df.merge(id_lookup[["ID", "NAMA_ID"]], on="ID", how="left")
 
 df["STATUS_KEMASKINI"] = df["IN_OUT"]
 df.loc[df["IN_OUT"].isna(), "STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
+
 df["STATUS_KEMASKINI"] = (
     df["STATUS_KEMASKINI"]
     .fillna("BELUM DIKEMASKINI")
     .astype(str)
     .str.upper()
     .str.strip()
-    .replace({"": "BELUM DIKEMASKINI", "NAN": "BELUM DIKEMASKINI", "NONE": "BELUM DIKEMASKINI"})
+    .replace({
+        "": "BELUM DIKEMASKINI",
+        "NAN": "BELUM DIKEMASKINI",
+        "NONE": "BELUM DIKEMASKINI"
+    })
 )
 
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
 df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
 df.loc[df["ID_FILTER_LABEL"].fillna("").astype(str).str.strip() == "", "ID_FILTER_LABEL"] = "(Blank)"
-
-df["ID_CHART"] = df["ID"].fillna("").astype(str).str.strip()
-df.loc[df["ID_CHART"] == "", "ID_CHART"] = "(Blank)"
 
 st.markdown("""
 <div style="text-align:center; padding-top:20px; padding-bottom:20px;">
@@ -194,8 +196,12 @@ col4.metric("Total Baucar", f"{total_semua:,}")
 
 st.divider()
 
+chart_id_df = df_filter.copy()
+chart_id_df["ID_PAPAR"] = chart_id_df["ID"].fillna("").astype(str).str.strip()
+chart_id_df.loc[chart_id_df["ID_PAPAR"] == "", "ID_PAPAR"] = "(Blank)"
+
 chart_id_total = (
-    df_filter.groupby("ID_CHART")
+    chart_id_df.groupby("ID_PAPAR", dropna=False)
     .size()
     .reset_index(name="Total Baucar")
     .sort_values("Total Baucar", ascending=False)
@@ -203,13 +209,16 @@ chart_id_total = (
 
 fig_id_total = px.bar(
     chart_id_total,
-    x="ID_CHART",
+    x="ID_PAPAR",
     y="Total Baucar",
     text="Total Baucar",
     title="ID vs Total Baucar"
 )
 
-fig_id_total.update_layout(xaxis_title="ID", yaxis_title="Total Baucar")
+fig_id_total.update_layout(
+    xaxis_title="ID",
+    yaxis_title="Total Baucar"
+)
 
 st.plotly_chart(fig_id_total, use_container_width=True)
 
