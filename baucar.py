@@ -1,8 +1,9 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(page_title="Baucar CIDB", page_icon="📁", layout="wide")
+st.set_page_config(page_title="E-FILING BKA", page_icon="📁", layout="wide")
 
 BAUCAR_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1370653594&single=true&output=csv"
 DATA_APP_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1657707039&single=true&output=csv"
@@ -10,13 +11,16 @@ ID_LOOKUP_FILE = "list ID.xlsx"
 
 st.markdown("""
 <style>
-/* =========================
-   CIDB RED MIRROR PILL THEME
-   Compatible with Streamlit st.pills active/inactive buttons
-========================= */
+/* CIDB RED MIRROR PILL THEME */
 
 .stApp {
     background: linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%);
+}
+
+.block-container {
+    padding-top: 0.8rem !important;
+    padding-bottom: 1rem !important;
+    max-width: 1500px !important;
 }
 
 section[data-testid="stSidebar"] {
@@ -37,11 +41,7 @@ section[data-testid="stSidebar"] span {
     color: #f8fafc !important;
 }
 
-/* =========================
-   INACTIVE PILLS
-   Streamlit usually uses stBaseButton-pills for inactive
-========================= */
-
+/* Inactive pills */
 section[data-testid="stSidebar"] button[data-testid="stBaseButton-pills"],
 section[data-testid="stSidebar"] button[aria-pressed="false"],
 section[data-testid="stSidebar"] button[aria-selected="false"] {
@@ -49,7 +49,7 @@ section[data-testid="stSidebar"] button[aria-selected="false"] {
     border: 1px solid rgba(255,255,255,0.22) !important;
     color: #e5e7eb !important;
     border-radius: 999px !important;
-    font-weight: 750 !important;
+    font-weight: 800 !important;
     box-shadow:
         inset 0 1px 0 rgba(255,255,255,0.10),
         0 4px 12px rgba(0,0,0,0.12) !important;
@@ -59,26 +59,10 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-pills"] *,
 section[data-testid="stSidebar"] button[aria-pressed="false"] *,
 section[data-testid="stSidebar"] button[aria-selected="false"] * {
     color: #e5e7eb !important;
-    font-weight: 750 !important;
+    font-weight: 800 !important;
 }
 
-/* Hover inactive */
-section[data-testid="stSidebar"] button[data-testid="stBaseButton-pills"]:hover,
-section[data-testid="stSidebar"] button[aria-pressed="false"]:hover,
-section[data-testid="stSidebar"] button[aria-selected="false"]:hover {
-    border: 1px solid rgba(248,113,113,0.95) !important;
-    color: #ffffff !important;
-    box-shadow:
-        0 0 12px rgba(239,68,68,0.35),
-        inset 0 1px 0 rgba(255,255,255,0.16) !important;
-    transform: translateY(-1px);
-}
-
-/* =========================
-   ACTIVE PILLS
-   Streamlit usually uses stBaseButton-pillsActive for selected
-========================= */
-
+/* Active pills */
 section[data-testid="stSidebar"] button[data-testid="stBaseButton-pillsActive"],
 section[data-testid="stSidebar"] button[aria-pressed="true"],
 section[data-testid="stSidebar"] button[aria-selected="true"],
@@ -94,7 +78,6 @@ section[data-testid="stSidebar"] button[aria-checked="true"] {
         0 0 42px rgba(248,113,113,0.65),
         inset 0 1px 0 rgba(255,255,255,0.72),
         inset 0 -10px 18px rgba(127,29,29,0.28) !important;
-    transform: translateY(-1px);
 }
 
 section[data-testid="stSidebar"] button[data-testid="stBaseButton-pillsActive"] *,
@@ -105,7 +88,6 @@ section[data-testid="stSidebar"] button[aria-checked="true"] * {
     font-weight: 950 !important;
 }
 
-/* Visible tick */
 section[data-testid="stSidebar"] button[data-testid="stBaseButton-pillsActive"]::before,
 section[data-testid="stSidebar"] button[aria-pressed="true"]::before,
 section[data-testid="stSidebar"] button[aria-selected="true"]::before,
@@ -115,35 +97,26 @@ section[data-testid="stSidebar"] button[aria-checked="true"]::before {
     color: #ffffff;
 }
 
-/* Refresh button */
-section[data-testid="stSidebar"] div.stButton > button {
+section[data-testid="stSidebar"] .stButton button {
     background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 52%, #f87171 100%) !important;
     color: #ffffff !important;
     border: 1px solid rgba(255,255,255,0.90) !important;
     border-radius: 14px !important;
     font-weight: 900 !important;
-    box-shadow:
-        0 0 14px rgba(220,38,38,0.36),
-        0 0 24px rgba(248,113,113,0.30) !important;
 }
 
-section[data-testid="stSidebar"] div.stButton > button:hover {
-    transform: translateY(-1px);
-    box-shadow:
-        0 0 18px rgba(220,38,38,0.50),
-        0 0 34px rgba(248,113,113,0.44) !important;
-}
-
-/* KPI cards */
 [data-testid="metric-container"] {
     background: rgba(255,255,255,0.94);
     border: 1px solid rgba(15,23,42,0.08);
     border-radius: 20px;
-    padding: 18px;
+    padding: 12px 16px !important;
     box-shadow: 0 10px 28px rgba(15,23,42,0.08);
 }
 
-/* Charts */
+[data-testid="stMetricValue"] {
+    font-size: 2.05rem !important;
+}
+
 [data-testid="stPlotlyChart"] {
     background: rgba(255,255,255,0.88);
     border-radius: 18px;
@@ -151,7 +124,6 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     box-shadow: 0 8px 22px rgba(15,23,42,0.06);
 }
 
-/* Dataframe */
 [data-testid="stDataFrame"] {
     border-radius: 16px;
     overflow: hidden;
@@ -160,21 +132,6 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 
 button[data-baseweb="tab"] {
     font-weight: 700;
-}
-
-/* Compact layout so KPI and chart fit better in one page */
-.block-container {
-    padding-top: 0.8rem !important;
-    padding-bottom: 1rem !important;
-    max-width: 1500px !important;
-}
-
-[data-testid="stMetricValue"] {
-    font-size: 2.05rem !important;
-}
-
-[data-testid="metric-container"] {
-    padding: 12px 16px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -227,6 +184,15 @@ def standardize_bulan(series):
     return extracted.fillna("").astype(str).str.upper().str.strip().map(bulan_map)
 
 
+def status_display(status_set):
+    statuses = sorted([x for x in status_set if x in ["IN", "OUT"]])
+    if not statuses:
+        return "BELUM DIKEMASKINI"
+    if len(statuses) == 2:
+        return "IN / OUT"
+    return statuses[0]
+
+
 bulan_order = ["JAN", "FEB", "MAC", "APR", "MEI", "JUN", "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"]
 
 baucar = load_csv(BAUCAR_CSV_URL)
@@ -259,14 +225,38 @@ id_lookup = id_lookup.rename(columns={
     "NAME": "NAMA_ID"
 })
 
+required_baucar = ["BULAN_TAHUN", "NO_BAUCAR", "NAMA", "ID"]
+required_data_app = ["NO_BAUCAR", "IN_OUT"]
+required_lookup = ["ID", "NAMA_ID"]
+
+missing_baucar = [c for c in required_baucar if c not in baucar.columns]
+missing_data_app = [c for c in required_data_app if c not in data_app.columns]
+missing_lookup = [c for c in required_lookup if c not in id_lookup.columns]
+
+if missing_baucar:
+    st.error(f"Column tidak dijumpai dalam sheet BAUCAR: {missing_baucar}")
+    st.write("Column BAUCAR yang dibaca:", list(baucar.columns))
+    st.stop()
+
+if missing_data_app:
+    st.error(f"Column tidak dijumpai dalam sheet DATA APP: {missing_data_app}")
+    st.write("Column DATA APP yang dibaca:", list(data_app.columns))
+    st.stop()
+
+if missing_lookup:
+    st.error(f"Column tidak dijumpai dalam list ID.xlsx: {missing_lookup}")
+    st.write("Column list ID.xlsx yang dibaca:", list(id_lookup.columns))
+    st.stop()
+
 baucar["NO_BAUCAR_CLEAN"] = clean_no_baucar(baucar["NO_BAUCAR"])
 baucar["ID"] = clean_text(baucar["ID"])
 baucar["TAHUN"] = baucar["BULAN_TAHUN"].fillna("").astype(str).str.extract(r"(\d{4})")
 baucar["BULAN"] = standardize_bulan(baucar["BULAN_TAHUN"])
 
 data_app["NO_BAUCAR_CLEAN"] = clean_no_baucar(data_app["NO_BAUCAR"])
-data_app = data_app[data_app["NO_BAUCAR_CLEAN"] != ""]
+data_app = data_app[data_app["NO_BAUCAR_CLEAN"] != ""].copy()
 data_app["IN_OUT"] = clean_text(data_app["IN_OUT"]).str.upper()
+data_app.loc[~data_app["IN_OUT"].isin(["IN", "OUT"]), "IN_OUT"] = ""
 
 id_lookup["ID"] = clean_text(id_lookup["ID"])
 id_lookup["NAMA_ID"] = clean_text(id_lookup["NAMA_ID"])
@@ -276,26 +266,38 @@ if "DATE" in data_app.columns:
     data_app["DATE"] = pd.to_datetime(data_app["DATE"], errors="coerce", dayfirst=True)
     data_app = data_app.sort_values("DATE")
 
+# Status logic:
+# BAUCAR = master list semua baucar.
+# DATA APP = baucar yang sudah dikemaskini.
+# Jika NO_BAUCAR wujud dalam DATA APP, status ikut IN/OUT di DATA APP.
+# Jika NO_BAUCAR tidak wujud langsung dalam DATA APP, status = BELUM DIKEMASKINI.
+status_agg = (
+    data_app.groupby("NO_BAUCAR_CLEAN")["IN_OUT"]
+    .agg(lambda x: set([v for v in x if v in ["IN", "OUT"]]))
+    .reset_index(name="STATUS_SET")
+)
+
+status_agg["ADA_DATA_APP"] = True
+status_agg["STATUS_KEMASKINI"] = status_agg["STATUS_SET"].apply(status_display)
+
+# Ambil rekod terkini untuk maklumat tarikh/kotak/email sahaja
 latest_app = data_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last")
 
-df = baucar.merge(latest_app, on="NO_BAUCAR_CLEAN", how="left", suffixes=("", "_APP"))
+latest_cols = [
+    c for c in [
+        "NO_BAUCAR_CLEAN", "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL",
+        "BULAN_TAHUN_APP"
+    ]
+    if c in latest_app.columns
+]
+
+df = baucar.merge(status_agg, on="NO_BAUCAR_CLEAN", how="left")
+df = df.merge(latest_app[latest_cols], on="NO_BAUCAR_CLEAN", how="left")
 df = df.merge(id_lookup[["ID", "NAMA_ID"]], on="ID", how="left")
 
-df["STATUS_KEMASKINI"] = df["IN_OUT"]
-df.loc[df["IN_OUT"].isna(), "STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
-
-df["STATUS_KEMASKINI"] = (
-    df["STATUS_KEMASKINI"]
-    .fillna("BELUM DIKEMASKINI")
-    .astype(str)
-    .str.upper()
-    .str.strip()
-    .replace({
-        "": "BELUM DIKEMASKINI",
-        "NAN": "BELUM DIKEMASKINI",
-        "NONE": "BELUM DIKEMASKINI"
-    })
-)
+df["ADA_DATA_APP"] = df["ADA_DATA_APP"].fillna(False)
+df["STATUS_KEMASKINI"] = df["STATUS_KEMASKINI"].fillna("BELUM DIKEMASKINI")
+df["STATUS_SET"] = df["STATUS_SET"].apply(lambda x: x if isinstance(x, set) else set())
 
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
 df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
@@ -357,15 +359,31 @@ st.sidebar.button("Refresh Filter", on_click=set_default_filters, use_container_
 
 tahun_selected = tahun if tahun else tahun_list
 bulan_selected = bulan if bulan else bulan_list
-status_selected = status if status else status_list
 id_selected = id_filter if id_filter else id_options
 
 df_filter = df[
     df["TAHUN"].astype(str).isin(tahun_selected)
     & df["BULAN"].astype(str).isin(bulan_selected)
-    & df["STATUS_KEMASKINI"].astype(str).isin(status_selected)
     & df["ID_FILTER_LABEL"].astype(str).isin(id_selected)
-]
+].copy()
+
+# Status filter khas:
+# IN = wujud IN dalam DATA APP
+# OUT = wujud OUT dalam DATA APP
+# BELUM DIKEMASKINI = NO_BAUCAR tiada dalam DATA APP
+if status:
+    mask_status = pd.Series(False, index=df_filter.index)
+
+    if "IN" in status:
+        mask_status = mask_status | df_filter["STATUS_SET"].apply(lambda s: "IN" in s)
+
+    if "OUT" in status:
+        mask_status = mask_status | df_filter["STATUS_SET"].apply(lambda s: "OUT" in s)
+
+    if "BELUM DIKEMASKINI" in status:
+        mask_status = mask_status | (~df_filter["ADA_DATA_APP"])
+
+    df_filter = df_filter[mask_status].copy()
 
 total_2024 = len(df_filter[df_filter["TAHUN"] == "2024"])
 total_2025 = len(df_filter[df_filter["TAHUN"] == "2025"])
@@ -458,12 +476,20 @@ with tab1:
     st.dataframe(df_filter[papar_cols], use_container_width=True, hide_index=True)
 
 with tab2:
-    telah = df_filter[df_filter["STATUS_KEMASKINI"].isin(["IN", "OUT"])]
+    telah = df_filter[df_filter["ADA_DATA_APP"]]
     st.dataframe(telah[papar_cols], use_container_width=True, hide_index=True)
 
 with tab3:
-    belum = df_filter[df_filter["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]
+    belum = df_filter[~df_filter["ADA_DATA_APP"]]
     st.dataframe(belum[papar_cols], use_container_width=True, hide_index=True)
+
+with st.expander("Semakan Status"):
+    st.write("Jumlah BAUCAR:", len(baucar))
+    st.write("NO BAUCAR unik dalam DATA APP:", data_app["NO_BAUCAR_CLEAN"].nunique())
+    st.write("Total selepas filter:", len(df_filter))
+    st.write("IN:", df["STATUS_SET"].apply(lambda s: "IN" in s).sum())
+    st.write("OUT:", df["STATUS_SET"].apply(lambda s: "OUT" in s).sum())
+    st.write("BELUM DIKEMASKINI:", (~df["ADA_DATA_APP"]).sum())
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
 
