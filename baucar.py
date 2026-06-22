@@ -7,30 +7,38 @@ st.set_page_config(page_title="Baucar CIDB", page_icon="📁", layout="wide")
 BAUCAR_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1370653594&single=true&output=csv"
 DATA_APP_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1657707039&single=true&output=csv"
 
+ID_LOOKUP_FILE = "list ID.xlsx"
+
 
 @st.cache_data(ttl=300)
 def load_csv(url):
-    df = pd.read_csv(url)
+    df = pd.read_csv(url, dtype=str)
     df.columns = df.columns.astype(str).str.strip()
     return df
 
 
-def clean_no_baucar(series):
+@st.cache_data(ttl=300)
+def load_id_lookup(file_path):
+    df = pd.read_excel(file_path, dtype=str)
+    df.columns = df.columns.astype(str).str.strip().str.upper()
+    return df
+
+
+def clean_text(series):
     return (
-        series.astype(str)
+        series.fillna("")
+        .astype(str)
         .str.strip()
-        .str.upper()
-        .str.replace(r"\s+", "", regex=True)
-        .replace(["NAN", "NONE", ""], pd.NA)
     )
 
 
-def clean_id(series):
+def clean_no_baucar(series):
     return (
-        pd.to_numeric(series, errors="coerce")
-        .astype("Int64")
+        series.fillna("")
         .astype(str)
-        .replace("<NA>", "")
+        .str.strip()
+        .str.upper()
+        .str.replace(r"\s+", "", regex=True)
     )
 
 
@@ -49,8 +57,9 @@ def standardize_bulan(series):
         "NOV": "NOV", "NOVEMBER": "NOV",
         "DIS": "DIS", "DEC": "DIS", "DECEMBER": "DIS"
     }
-    extracted = series.astype(str).str.extract(r"([A-Za-zÀ-ÿ]+)")[0]
-    return extracted.astype(str).str.upper().str.strip().map(bulan_map)
+
+    extracted = series.fillna("").astype(str).str.extract(r"([A-Za-zÀ-ÿ]+)")[0]
+    return extracted.fillna("").astype(str).str.upper().str.strip().map(bulan_map)
 
 
 bulan_order = [
@@ -58,8 +67,11 @@ bulan_order = [
     "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"
 ]
 
+
 baucar = load_csv(BAUCAR_CSV_URL)
 data_app = load_csv(DATA_APP_CSV_URL)
+
+id_lookup = load_id_lookup(ID_LOOKUP_FILE)
 
 baucar = baucar.rename(columns={
     "BULAN/TAHUN": "BULAN_TAHUN",
@@ -80,14 +92,47 @@ data_app = data_app.rename(columns={
     "EMAIL": "EMAIL"
 })
 
+id_lookup = id_lookup.rename(columns={
+    "NO STAFF": "ID",
+    "NAMA": "NAMA_ID",
+    "NAME": "NAMA_ID"
+})
+
+required_baucar = ["BULAN_TAHUN", "NO_BAUCAR", "NAMA", "ID"]
+required_data_app = ["NO_BAUCAR", "IN_OUT"]
+required_lookup = ["ID", "NAMA_ID"]
+
+missing_baucar = [c for c in required_baucar if c not in baucar.columns]
+missing_data_app = [c for c in required_data_app if c not in data_app.columns]
+missing_lookup = [c for c in required_lookup if c not in id_lookup.columns]
+
+if missing_baucar:
+    st.error(f"Column tidak dijumpai dalam sheet BAUCAR: {missing_baucar}")
+    st.write("Column BAUCAR yang dibaca:", list(baucar.columns))
+    st.stop()
+
+if missing_data_app:
+    st.error(f"Column tidak dijumpai dalam sheet DATA APP: {missing_data_app}")
+    st.write("Column DATA APP yang dibaca:", list(data_app.columns))
+    st.stop()
+
+if missing_lookup:
+    st.error(f"Column tidak dijumpai dalam list ID.xlsx: {missing_lookup}")
+    st.write("Column list ID.xlsx yang dibaca:", list(id_lookup.columns))
+    st.stop()
+
 baucar["NO_BAUCAR_CLEAN"] = clean_no_baucar(baucar["NO_BAUCAR"])
-baucar["ID"] = clean_id(baucar["ID"])
-baucar["TAHUN"] = baucar["BULAN_TAHUN"].astype(str).str.extract(r"(\d{4})")
+baucar["ID"] = clean_text(baucar["ID"])
+baucar["TAHUN"] = baucar["BULAN_TAHUN"].fillna("").astype(str).str.extract(r"(\d{4})")
 baucar["BULAN"] = standardize_bulan(baucar["BULAN_TAHUN"])
 
 data_app["NO_BAUCAR_CLEAN"] = clean_no_baucar(data_app["NO_BAUCAR"])
-data_app = data_app.dropna(subset=["NO_BAUCAR_CLEAN"])
-data_app["IN_OUT"] = data_app["IN_OUT"].fillna("").astype(str).str.upper().str.strip()
+data_app = data_app[data_app["NO_BAUCAR_CLEAN"] != ""]
+data_app["IN_OUT"] = clean_text(data_app["IN_OUT"]).str.upper()
+
+id_lookup["ID"] = clean_text(id_lookup["ID"])
+id_lookup["NAMA_ID"] = clean_text(id_lookup["NAMA_ID"])
+id_lookup = id_lookup.drop_duplicates(subset=["ID"], keep="first")
 
 if "DATE" in data_app.columns:
     data_app["DATE"] = pd.to_datetime(data_app["DATE"], errors="coerce", dayfirst=True)
@@ -100,6 +145,12 @@ df = baucar.merge(
     on="NO_BAUCAR_CLEAN",
     how="left",
     suffixes=("", "_APP")
+)
+
+df = df.merge(
+    id_lookup[["ID", "NAMA_ID"]],
+    on="ID",
+    how="left"
 )
 
 df["STATUS_KEMASKINI"] = df["IN_OUT"]
@@ -118,6 +169,10 @@ df["STATUS_KEMASKINI"] = (
     })
 )
 
+df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
+df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
+df.loc[df["ID_FILTER_LABEL"].fillna("").astype(str).str.strip() == "", "ID_FILTER_LABEL"] = "(Blank)"
+
 st.markdown("""
 <div style="text-align:center; padding-top:20px; padding-bottom:20px;">
     <h1 style="font-size:56px;">Baucar CIDB</h1>
@@ -131,22 +186,20 @@ tahun_list = sorted(df["TAHUN"].dropna().astype(str).unique())
 bulan_list = [b for b in bulan_order if b in df["BULAN"].dropna().astype(str).unique()]
 status_list = ["IN", "OUT", "BELUM DIKEMASKINI"]
 
-id_values = df["ID"].fillna("").astype(str).unique().tolist()
-id_normal = sorted(
-    [x for x in id_values if x.strip() != ""],
-    key=lambda x: int(x) if x.isdigit() else 999999999
+id_options = (
+    df[["ID_FILTER_LABEL", "ID"]]
+    .drop_duplicates()
+    .sort_values("ID_FILTER_LABEL")["ID_FILTER_LABEL"]
+    .tolist()
 )
 
-id_options = id_normal.copy()
-if "" in id_values:
-    id_options.append("(Blank)")
+if "(Blank)" in id_options:
+    id_options = [x for x in id_options if x != "(Blank)"] + ["(Blank)"]
 
 tahun = st.sidebar.pills("Tahun", tahun_list, default=tahun_list, selection_mode="multi")
 bulan = st.sidebar.pills("Bulan", bulan_list, default=bulan_list, selection_mode="multi")
 status = st.sidebar.pills("Status", status_list, default=status_list, selection_mode="multi")
-id_filter = st.sidebar.pills("ID", id_options, default=id_options, selection_mode="multi")
-
-selected_ids = ["" if x == "(Blank)" else x for x in id_filter]
+id_filter = st.sidebar.pills("ID / Nama", id_options, default=id_options, selection_mode="multi")
 
 carian = st.sidebar.text_input("Cari Nama / No Baucar / Email / Kotak")
 
@@ -154,7 +207,7 @@ df_filter = df[
     df["TAHUN"].astype(str).isin(tahun)
     & df["BULAN"].astype(str).isin(bulan)
     & df["STATUS_KEMASKINI"].astype(str).isin(status)
-    & df["ID"].fillna("").astype(str).isin(selected_ids)
+    & df["ID_FILTER_LABEL"].astype(str).isin(id_filter)
 ]
 
 if carian:
@@ -179,20 +232,18 @@ col4.metric("Total Baucar", f"{total_semua:,}")
 st.divider()
 
 chart_id_total = (
-    df_filter.groupby("ID")
+    df_filter.groupby("ID_FILTER_LABEL")
     .size()
     .reset_index(name="Total Baucar")
     .sort_values("Total Baucar", ascending=False)
 )
 
-chart_id_total["ID"] = chart_id_total["ID"].replace("", "(Blank)")
-
 fig_id_total = px.bar(
     chart_id_total,
-    x="ID",
+    x="ID_FILTER_LABEL",
     y="Total Baucar",
     text="Total Baucar",
-    title="ID vs Total Baucar"
+    title="Nama / ID vs Total Baucar"
 )
 
 st.plotly_chart(fig_id_total, use_container_width=True)
@@ -239,6 +290,7 @@ papar_cols = [
     "NO_BAUCAR",
     "NAMA",
     "ID",
+    "NAMA_ID",
     "STATUS_KEMASKINI",
     "DATE",
     "NO_KOTAK",
@@ -264,6 +316,7 @@ with st.expander("Semakan kiraan data"):
     st.write("Jumlah row selepas merge:", len(df))
     st.write("Jumlah row selepas filter:", len(df_filter))
     st.write("Jumlah ID kosong:", (df["ID"].fillna("").astype(str).str.strip() == "").sum())
+    st.write("Jumlah ID berjaya dipadankan dengan list ID:", df["NAMA_ID"].notna().sum())
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
 
