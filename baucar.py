@@ -10,18 +10,116 @@ ID_LOOKUP_FILE = "list ID.xlsx"
 
 st.markdown("""
 <style>
-button[aria-pressed="true"] {
-    background: linear-gradient(135deg, #e0f2fe, #ffffff, #bae6fd) !important;
-    border: 1px solid rgba(14, 165, 233, 0.65) !important;
-    box-shadow: 0 0 12px rgba(14, 165, 233, 0.45) !important;
-    font-weight: 700 !important;
+/* =========================
+   THEME: Emerald Aurora
+========================= */
+
+.stApp {
+    background: linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%);
 }
-button[aria-pressed="true"]::before {
+
+section[data-testid="stSidebar"] {
+    background:
+        radial-gradient(circle at top left, rgba(16,185,129,0.22), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(6,182,212,0.24), transparent 30%),
+        linear-gradient(180deg, #0f172a 0%, #111827 45%, #1e293b 100%) !important;
+    border-right: 1px solid rgba(255,255,255,0.10);
+}
+
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3,
+section[data-testid="stSidebar"] h4,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span {
+    color: #f8fafc !important;
+}
+
+section[data-testid="stSidebar"] button[aria-pressed] {
+    border-radius: 999px !important;
+    padding: 0.45rem 0.85rem !important;
+    margin-bottom: 0.25rem !important;
+    transition: all 0.20s ease-in-out !important;
+    backdrop-filter: blur(8px);
+}
+
+section[data-testid="stSidebar"] button[aria-pressed="false"] {
+    background: rgba(255,255,255,0.07) !important;
+    border: 1px solid rgba(255,255,255,0.18) !important;
+    color: #e5e7eb !important;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.08),
+        0 4px 12px rgba(0,0,0,0.10) !important;
+}
+
+section[data-testid="stSidebar"] button[aria-pressed="false"]:hover {
+    border: 1px solid rgba(34,211,238,0.85) !important;
+    box-shadow:
+        0 0 12px rgba(34,211,238,0.30),
+        inset 0 1px 0 rgba(255,255,255,0.15) !important;
+    transform: translateY(-1px);
+}
+
+section[data-testid="stSidebar"] button[aria-pressed="true"] {
+    background: linear-gradient(135deg, #10b981 0%, #14b8a6 45%, #06b6d4 100%) !important;
+    border: 1.5px solid rgba(255,255,255,0.92) !important;
+    color: white !important;
+    font-weight: 800 !important;
+    box-shadow:
+        0 0 8px rgba(16,185,129,0.90),
+        0 0 18px rgba(20,184,166,0.70),
+        0 0 34px rgba(6,182,212,0.55),
+        inset 0 1px 0 rgba(255,255,255,0.40) !important;
+}
+
+section[data-testid="stSidebar"] button[aria-pressed="true"]::before {
     content: "✓ ";
     font-weight: 900;
+    color: #ffffff;
 }
-section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
+
+section[data-testid="stSidebar"] .stButton button {
+    background: linear-gradient(135deg, #facc15 0%, #10b981 55%, #06b6d4 100%) !important;
+    color: #082f49 !important;
+    border: 1px solid rgba(255,255,255,0.85) !important;
+    border-radius: 14px !important;
+    font-weight: 900 !important;
+    box-shadow:
+        0 0 14px rgba(250,204,21,0.30),
+        0 0 24px rgba(6,182,212,0.28) !important;
+}
+
+section[data-testid="stSidebar"] .stButton button:hover {
+    transform: translateY(-1px);
+    box-shadow:
+        0 0 18px rgba(250,204,21,0.45),
+        0 0 34px rgba(6,182,212,0.40) !important;
+}
+
+[data-testid="metric-container"] {
+    background: rgba(255,255,255,0.94);
+    border: 1px solid rgba(15,23,42,0.08);
+    border-radius: 20px;
+    padding: 18px;
+    box-shadow: 0 10px 28px rgba(15,23,42,0.08);
+}
+
+[data-testid="stPlotlyChart"] {
+    background: rgba(255,255,255,0.88);
+    border-radius: 18px;
+    padding: 8px;
+    box-shadow: 0 8px 22px rgba(15,23,42,0.06);
+}
+
+[data-testid="stDataFrame"] {
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 22px rgba(15,23,42,0.06);
+}
+
+button[data-baseweb="tab"] {
+    font-weight: 700;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -155,7 +253,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.sidebar.title("Filter")
+st.sidebar.title("✨ Filter")
 
 tahun_list = sorted(df["TAHUN"].dropna().astype(str).unique())
 bulan_list = [b for b in bulan_order if b in df["BULAN"].dropna().astype(str).unique()]
@@ -186,10 +284,17 @@ for key in ["tahun_filter", "bulan_filter", "status_filter", "id_filter"]:
         set_default_filters()
         break
 
-tahun = st.sidebar.pills("Tahun", tahun_list, selection_mode="multi", key="tahun_filter")
-bulan = st.sidebar.pills("Bulan", bulan_list, selection_mode="multi", key="bulan_filter")
-status = st.sidebar.pills("Status", status_list, selection_mode="multi", key="status_filter")
-id_filter = st.sidebar.pills("Nama / ID", id_options, selection_mode="multi", key="id_filter")
+st.sidebar.markdown("#### Tahun")
+tahun = st.sidebar.pills("Tahun", tahun_list, selection_mode="multi", key="tahun_filter", label_visibility="collapsed")
+
+st.sidebar.markdown("#### Bulan")
+bulan = st.sidebar.pills("Bulan", bulan_list, selection_mode="multi", key="bulan_filter", label_visibility="collapsed")
+
+st.sidebar.markdown("#### Status")
+status = st.sidebar.pills("Status", status_list, selection_mode="multi", key="status_filter", label_visibility="collapsed")
+
+st.sidebar.markdown("#### Nama / ID")
+id_filter = st.sidebar.pills("Nama / ID", id_options, selection_mode="multi", key="id_filter", label_visibility="collapsed")
 
 st.sidebar.button("Refresh Filter", on_click=set_default_filters, use_container_width=True)
 
