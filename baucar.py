@@ -10,12 +10,18 @@ ID_LOOKUP_FILE = "list ID.xlsx"
 
 st.markdown("""
 <style>
-/* CIDB RED MIRROR - STRONG CSS */
+/* =========================
+   CIDB RED MIRROR PILL THEME
+   Default kosong = semua data.
+   Bila klik pill, hanya pilihan itu aktif.
+   Klik semula pill aktif untuk untick.
+========================= */
 
 .stApp {
     background: linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%);
 }
 
+/* Sidebar */
 section[data-testid="stSidebar"] {
     background:
         radial-gradient(circle at top left, rgba(239,68,68,0.22), transparent 28%),
@@ -24,6 +30,7 @@ section[data-testid="stSidebar"] {
     border-right: 1px solid rgba(255,255,255,0.10);
 }
 
+/* Sidebar text */
 section[data-testid="stSidebar"] h1,
 section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3,
@@ -34,15 +41,20 @@ section[data-testid="stSidebar"] span {
     color: #f8fafc !important;
 }
 
-/* Semua pill: neutral dark, tulisan jelas */
+/* Pill container spacing */
+section[data-testid="stSidebar"] div[data-testid="stPills"] {
+    gap: 0.35rem !important;
+}
+
+/* Semua pill: gelap, tulisan jelas */
+section[data-testid="stSidebar"] button[aria-pressed],
 section[data-testid="stSidebar"] div[data-testid="stPills"] button,
-section[data-testid="stSidebar"] div[data-baseweb="button-group"] button,
-section[data-testid="stSidebar"] button[aria-pressed] {
+section[data-testid="stSidebar"] div[data-baseweb="button-group"] button {
     background: rgba(255,255,255,0.075) !important;
-    border: 1px solid rgba(255,255,255,0.22) !important;
-    color: #f1f5f9 !important;
+    border: 1px solid rgba(255,255,255,0.24) !important;
+    color: #f8fafc !important;
     border-radius: 999px !important;
-    font-weight: 750 !important;
+    font-weight: 800 !important;
     padding: 0.45rem 0.85rem !important;
     margin-bottom: 0.25rem !important;
     box-shadow:
@@ -51,54 +63,54 @@ section[data-testid="stSidebar"] button[aria-pressed] {
     transition: all 0.18s ease-in-out !important;
 }
 
+/* Pastikan tulisan dalam pill nampak */
+section[data-testid="stSidebar"] button[aria-pressed] *,
 section[data-testid="stSidebar"] div[data-testid="stPills"] button *,
-section[data-testid="stSidebar"] div[data-baseweb="button-group"] button *,
-section[data-testid="stSidebar"] button[aria-pressed] * {
-    color: #f1f5f9 !important;
-    font-weight: 750 !important;
+section[data-testid="stSidebar"] div[data-baseweb="button-group"] button * {
+    color: #f8fafc !important;
+    font-weight: 800 !important;
 }
 
 /* Hover */
+section[data-testid="stSidebar"] button[aria-pressed="false"]:hover,
 section[data-testid="stSidebar"] div[data-testid="stPills"] button:hover,
-section[data-testid="stSidebar"] div[data-baseweb="button-group"] button:hover,
-section[data-testid="stSidebar"] button[aria-pressed="false"]:hover {
+section[data-testid="stSidebar"] div[data-baseweb="button-group"] button:hover {
     border: 1px solid rgba(248,113,113,0.95) !important;
-    color: #ffffff !important;
     box-shadow:
         0 0 12px rgba(239,68,68,0.35),
         inset 0 1px 0 rgba(255,255,255,0.16) !important;
     transform: translateY(-1px);
 }
 
-/* Selected pill - red mirror */
+/* Selected: merah mirror stay */
+section[data-testid="stSidebar"] button[aria-pressed="true"],
+section[data-testid="stSidebar"] button[aria-selected="true"],
 section[data-testid="stSidebar"] div[data-testid="stPills"] button[aria-pressed="true"],
 section[data-testid="stSidebar"] div[data-testid="stPills"] button[aria-selected="true"],
 section[data-testid="stSidebar"] div[data-baseweb="button-group"] button[aria-pressed="true"],
-section[data-testid="stSidebar"] div[data-baseweb="button-group"] button[aria-selected="true"],
-section[data-testid="stSidebar"] button[aria-pressed="true"],
-section[data-testid="stSidebar"] button[aria-selected="true"] {
+section[data-testid="stSidebar"] div[data-baseweb="button-group"] button[aria-selected="true"] {
     background: linear-gradient(135deg, #991b1b 0%, #dc2626 42%, #ef4444 72%, #fca5a5 100%) !important;
-    border: 1.8px solid rgba(255,255,255,0.96) !important;
+    border: 2px solid rgba(255,255,255,0.96) !important;
     color: #ffffff !important;
     font-weight: 900 !important;
     box-shadow:
-        0 0 8px rgba(220,38,38,0.88),
-        0 0 18px rgba(239,68,68,0.72),
-        0 0 34px rgba(248,113,113,0.55),
-        inset 0 1px 0 rgba(255,255,255,0.55),
-        inset 0 -10px 18px rgba(127,29,29,0.22) !important;
+        0 0 8px rgba(220,38,38,0.92),
+        0 0 18px rgba(239,68,68,0.78),
+        0 0 34px rgba(248,113,113,0.58),
+        inset 0 1px 0 rgba(255,255,255,0.58),
+        inset 0 -10px 18px rgba(127,29,29,0.24) !important;
 }
 
-section[data-testid="stSidebar"] div[data-testid="stPills"] button[aria-pressed="true"] *,
-section[data-testid="stSidebar"] div[data-testid="stPills"] button[aria-selected="true"] *,
-section[data-testid="stSidebar"] div[data-baseweb="button-group"] button[aria-pressed="true"] *,
-section[data-testid="stSidebar"] div[data-baseweb="button-group"] button[aria-selected="true"] *,
+/* Text selected */
 section[data-testid="stSidebar"] button[aria-pressed="true"] *,
-section[data-testid="stSidebar"] button[aria-selected="true"] * {
+section[data-testid="stSidebar"] button[aria-selected="true"] *,
+section[data-testid="stSidebar"] div[data-testid="stPills"] button[aria-pressed="true"] *,
+section[data-testid="stSidebar"] div[data-testid="stPills"] button[aria-selected="true"] * {
     color: #ffffff !important;
     font-weight: 900 !important;
 }
 
+/* Tick indicator for selected pill */
 section[data-testid="stSidebar"] button[aria-pressed="true"]::before,
 section[data-testid="stSidebar"] button[aria-selected="true"]::before {
     content: "✓ ";
@@ -125,6 +137,7 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
         0 0 34px rgba(248,113,113,0.44) !important;
 }
 
+/* KPI cards */
 [data-testid="metric-container"] {
     background: rgba(255,255,255,0.94);
     border: 1px solid rgba(15,23,42,0.08);
@@ -133,6 +146,7 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     box-shadow: 0 10px 28px rgba(15,23,42,0.08);
 }
 
+/* Charts */
 [data-testid="stPlotlyChart"] {
     background: rgba(255,255,255,0.88);
     border-radius: 18px;
@@ -140,6 +154,7 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     box-shadow: 0 8px 22px rgba(15,23,42,0.06);
 }
 
+/* Dataframe */
 [data-testid="stDataFrame"] {
     border-radius: 16px;
     overflow: hidden;
@@ -301,8 +316,8 @@ if "(Blank)" in id_options:
 
 
 def set_default_filters():
-    # Default kosong = paparkan semua data.
-    # Bila user klik pill, hanya pilihan yang diklik sahaja akan ditapis.
+    # Kosong bermaksud semua data dipaparkan.
+    # Bila user klik pill, pilihan itu sahaja aktif.
     st.session_state["tahun_filter"] = []
     st.session_state["bulan_filter"] = []
     st.session_state["status_filter"] = []
@@ -314,52 +329,17 @@ for key in ["tahun_filter", "bulan_filter", "status_filter", "id_filter"]:
         set_default_filters()
         break
 
-
-def pill_label(value, key):
-    selected = st.session_state.get(key, [])
-    if value in selected:
-        return f"✓ {value}"
-    return value
-
 st.sidebar.markdown("#### Tahun")
-tahun = st.sidebar.pills(
-    "Tahun",
-    tahun_list,
-    selection_mode="multi",
-    key="tahun_filter",
-    label_visibility="collapsed",
-    format_func=lambda x: pill_label(x, "tahun_filter")
-)
+tahun = st.sidebar.pills("Tahun", tahun_list, selection_mode="multi", key="tahun_filter", label_visibility="collapsed")
 
 st.sidebar.markdown("#### Bulan")
-bulan = st.sidebar.pills(
-    "Bulan",
-    bulan_list,
-    selection_mode="multi",
-    key="bulan_filter",
-    label_visibility="collapsed",
-    format_func=lambda x: pill_label(x, "bulan_filter")
-)
+bulan = st.sidebar.pills("Bulan", bulan_list, selection_mode="multi", key="bulan_filter", label_visibility="collapsed")
 
 st.sidebar.markdown("#### Status")
-status = st.sidebar.pills(
-    "Status",
-    status_list,
-    selection_mode="multi",
-    key="status_filter",
-    label_visibility="collapsed",
-    format_func=lambda x: pill_label(x, "status_filter")
-)
+status = st.sidebar.pills("Status", status_list, selection_mode="multi", key="status_filter", label_visibility="collapsed")
 
 st.sidebar.markdown("#### Nama / ID")
-id_filter = st.sidebar.pills(
-    "Nama / ID",
-    id_options,
-    selection_mode="multi",
-    key="id_filter",
-    label_visibility="collapsed",
-    format_func=lambda x: pill_label(x, "id_filter")
-)
+id_filter = st.sidebar.pills("Nama / ID", id_options, selection_mode="multi", key="id_filter", label_visibility="collapsed")
 
 st.sidebar.button("Refresh Filter", on_click=set_default_filters, use_container_width=True)
 
