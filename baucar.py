@@ -6,9 +6,16 @@ st.set_page_config(page_title="Baucar CIDB", page_icon="📁", layout="wide")
 
 BAUCAR_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1370653594&single=true&output=csv"
 DATA_APP_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1657707039&single=true&output=csv"
-
 ID_LOOKUP_FILE = "list ID.xlsx"
 
+st.markdown("""
+<style>
+button[aria-pressed="true"]::before {
+    content: "✓ ";
+    font-weight: 700;
+}
+</style>
+""", unsafe_allow_html=True)
 
 @st.cache_data(ttl=300)
 def load_csv(url):
@@ -16,17 +23,14 @@ def load_csv(url):
     df.columns = df.columns.astype(str).str.strip()
     return df
 
-
 @st.cache_data(ttl=300)
 def load_id_lookup(file_path):
     df = pd.read_excel(file_path, dtype=str)
     df.columns = df.columns.astype(str).str.strip().str.upper()
     return df
 
-
 def clean_text(series):
     return series.fillna("").astype(str).str.strip()
-
 
 def clean_no_baucar(series):
     return (
@@ -36,7 +40,6 @@ def clean_no_baucar(series):
         .str.upper()
         .str.replace(r"\s+", "", regex=True)
     )
-
 
 def standardize_bulan(series):
     bulan_map = {
@@ -53,16 +56,10 @@ def standardize_bulan(series):
         "NOV": "NOV", "NOVEMBER": "NOV",
         "DIS": "DIS", "DEC": "DIS", "DECEMBER": "DIS"
     }
-
     extracted = series.fillna("").astype(str).str.extract(r"([A-Za-zÀ-ÿ]+)")[0]
     return extracted.fillna("").astype(str).str.upper().str.strip().map(bulan_map)
 
-
-bulan_order = [
-    "JAN", "FEB", "MAC", "APR", "MEI", "JUN",
-    "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"
-]
-
+bulan_order = ["JAN", "FEB", "MAC", "APR", "MEI", "JUN", "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"]
 
 baucar = load_csv(BAUCAR_CSV_URL)
 data_app = load_csv(DATA_APP_CSV_URL)
@@ -94,29 +91,6 @@ id_lookup = id_lookup.rename(columns={
     "NAME": "NAMA_ID"
 })
 
-required_baucar = ["BULAN_TAHUN", "NO_BAUCAR", "NAMA", "ID"]
-required_data_app = ["NO_BAUCAR", "IN_OUT"]
-required_lookup = ["ID", "NAMA_ID"]
-
-missing_baucar = [c for c in required_baucar if c not in baucar.columns]
-missing_data_app = [c for c in required_data_app if c not in data_app.columns]
-missing_lookup = [c for c in required_lookup if c not in id_lookup.columns]
-
-if missing_baucar:
-    st.error(f"Column tidak dijumpai dalam sheet BAUCAR: {missing_baucar}")
-    st.write("Column BAUCAR yang dibaca:", list(baucar.columns))
-    st.stop()
-
-if missing_data_app:
-    st.error(f"Column tidak dijumpai dalam sheet DATA APP: {missing_data_app}")
-    st.write("Column DATA APP yang dibaca:", list(data_app.columns))
-    st.stop()
-
-if missing_lookup:
-    st.error(f"Column tidak dijumpai dalam list ID.xlsx: {missing_lookup}")
-    st.write("Column list ID.xlsx yang dibaca:", list(id_lookup.columns))
-    st.stop()
-
 baucar["NO_BAUCAR_CLEAN"] = clean_no_baucar(baucar["NO_BAUCAR"])
 baucar["ID"] = clean_text(baucar["ID"])
 baucar["TAHUN"] = baucar["BULAN_TAHUN"].fillna("").astype(str).str.extract(r"(\d{4})")
@@ -136,33 +110,18 @@ if "DATE" in data_app.columns:
 
 latest_app = data_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last")
 
-df = baucar.merge(
-    latest_app,
-    on="NO_BAUCAR_CLEAN",
-    how="left",
-    suffixes=("", "_APP")
-)
-
-df = df.merge(
-    id_lookup[["ID", "NAMA_ID"]],
-    on="ID",
-    how="left"
-)
+df = baucar.merge(latest_app, on="NO_BAUCAR_CLEAN", how="left", suffixes=("", "_APP"))
+df = df.merge(id_lookup[["ID", "NAMA_ID"]], on="ID", how="left")
 
 df["STATUS_KEMASKINI"] = df["IN_OUT"]
 df.loc[df["IN_OUT"].isna(), "STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
-
 df["STATUS_KEMASKINI"] = (
     df["STATUS_KEMASKINI"]
     .fillna("BELUM DIKEMASKINI")
     .astype(str)
     .str.upper()
     .str.strip()
-    .replace({
-        "": "BELUM DIKEMASKINI",
-        "NAN": "BELUM DIKEMASKINI",
-        "NONE": "BELUM DIKEMASKINI"
-    })
+    .replace({"": "BELUM DIKEMASKINI", "NAN": "BELUM DIKEMASKINI", "NONE": "BELUM DIKEMASKINI"})
 )
 
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
@@ -194,12 +153,27 @@ id_options = (
 if "(Blank)" in id_options:
     id_options = [x for x in id_options if x != "(Blank)"] + ["(Blank)"]
 
-tahun = st.sidebar.pills("Tahun", tahun_list, default=tahun_list, selection_mode="multi")
-bulan = st.sidebar.pills("Bulan", bulan_list, default=bulan_list, selection_mode="multi")
-status = st.sidebar.pills("Status", status_list, default=status_list, selection_mode="multi")
-id_filter = st.sidebar.pills("Nama / ID", id_options, default=id_options, selection_mode="multi")
+for key, values in {
+    "tahun_filter": tahun_list,
+    "bulan_filter": bulan_list,
+    "status_filter": status_list,
+    "id_filter": id_options,
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = values
 
-carian = st.sidebar.text_input("Cari Nama / No Baucar / Email / Kotak")
+def refresh_filter():
+    st.session_state["tahun_filter"] = tahun_list
+    st.session_state["bulan_filter"] = bulan_list
+    st.session_state["status_filter"] = status_list
+    st.session_state["id_filter"] = id_options
+
+tahun = st.sidebar.pills("Tahun", tahun_list, default=st.session_state["tahun_filter"], selection_mode="multi", key="tahun_filter")
+bulan = st.sidebar.pills("Bulan", bulan_list, default=st.session_state["bulan_filter"], selection_mode="multi", key="bulan_filter")
+status = st.sidebar.pills("Status", status_list, default=st.session_state["status_filter"], selection_mode="multi", key="status_filter")
+id_filter = st.sidebar.pills("Nama / ID", id_options, default=st.session_state["id_filter"], selection_mode="multi", key="id_filter")
+
+st.sidebar.button("Refresh Filter", on_click=refresh_filter, use_container_width=True)
 
 df_filter = df[
     df["TAHUN"].astype(str).isin(tahun)
@@ -207,14 +181,6 @@ df_filter = df[
     & df["STATUS_KEMASKINI"].astype(str).isin(status)
     & df["ID_FILTER_LABEL"].astype(str).isin(id_filter)
 ]
-
-if carian:
-    df_filter = df_filter[
-        df_filter.astype(str).apply(
-            lambda row: row.str.contains(carian, case=False, na=False).any(),
-            axis=1
-        )
-    ]
 
 total_2024 = len(df_filter[df_filter["TAHUN"] == "2024"])
 total_2025 = len(df_filter[df_filter["TAHUN"] == "2025"])
@@ -277,25 +243,12 @@ with c2:
     )
     st.plotly_chart(fig_bulan, use_container_width=True)
 
-tab1, tab2, tab3 = st.tabs([
-    "Semua Baucar",
-    "Telah Dikemaskini",
-    "Belum Dikemaskini"
-])
+tab1, tab2, tab3 = st.tabs(["Semua Baucar", "Telah Dikemaskini", "Belum Dikemaskini"])
 
 papar_cols = [
-    "BULAN_TAHUN",
-    "NO_BAUCAR",
-    "NAMA",
-    "ID",
-    "NAMA_ID",
-    "STATUS_KEMASKINI",
-    "DATE",
-    "NO_KOTAK",
-    "KOTAK_TAMBAHAN",
-    "EMAIL"
+    "BULAN_TAHUN", "NO_BAUCAR", "NAMA", "ID", "NAMA_ID",
+    "STATUS_KEMASKINI", "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL"
 ]
-
 papar_cols = [col for col in papar_cols if col in df_filter.columns]
 
 with tab1:
@@ -308,13 +261,6 @@ with tab2:
 with tab3:
     belum = df_filter[df_filter["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]
     st.dataframe(belum[papar_cols], use_container_width=True, hide_index=True)
-
-with st.expander("Semakan kiraan data"):
-    st.write("Jumlah row BAUCAR dibaca:", len(baucar))
-    st.write("Jumlah row selepas merge:", len(df))
-    st.write("Jumlah row selepas filter:", len(df_filter))
-    st.write("Jumlah ID kosong:", (df["ID"].fillna("").astype(str).str.strip() == "").sum())
-    st.write("Jumlah ID berjaya dipadankan dengan list ID:", df["NAMA_ID"].notna().sum())
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
 
