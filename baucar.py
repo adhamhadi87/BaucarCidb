@@ -11,21 +11,24 @@ ID_LOOKUP_FILE = "list ID.xlsx"
 st.markdown("""
 <style>
 /* =========================
-   THEME: Emerald Aurora
+   CIDB Sidebar Theme
+   Selected = terang, Unselected = neutral
 ========================= */
 
 .stApp {
     background: linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%);
 }
 
+/* Sidebar */
 section[data-testid="stSidebar"] {
     background:
         radial-gradient(circle at top left, rgba(16,185,129,0.22), transparent 28%),
         radial-gradient(circle at bottom right, rgba(6,182,212,0.24), transparent 30%),
-        linear-gradient(180deg, #0f172a 0%, #111827 45%, #1e293b 100%) !important;
+        linear-gradient(180deg, #0f172a 0%, #111827 48%, #1e293b 100%) !important;
     border-right: 1px solid rgba(255,255,255,0.10);
 }
 
+/* Sidebar text */
 section[data-testid="stSidebar"] h1,
 section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3,
@@ -36,49 +39,57 @@ section[data-testid="stSidebar"] span {
     color: #f8fafc !important;
 }
 
+/* Pills */
 section[data-testid="stSidebar"] button[aria-pressed] {
     border-radius: 999px !important;
     padding: 0.45rem 0.85rem !important;
     margin-bottom: 0.25rem !important;
-    transition: all 0.20s ease-in-out !important;
+    transition: all 0.18s ease-in-out !important;
     backdrop-filter: blur(8px);
 }
 
+/* Unselected pill - neutral dark glass */
 section[data-testid="stSidebar"] button[aria-pressed="false"] {
-    background: rgba(255,255,255,0.07) !important;
+    background: rgba(255,255,255,0.055) !important;
     border: 1px solid rgba(255,255,255,0.18) !important;
-    color: #e5e7eb !important;
+    color: #cbd5e1 !important;
+    font-weight: 650 !important;
     box-shadow:
         inset 0 1px 0 rgba(255,255,255,0.08),
         0 4px 12px rgba(0,0,0,0.10) !important;
 }
 
+/* Unselected hover - cyan hint */
 section[data-testid="stSidebar"] button[aria-pressed="false"]:hover {
     border: 1px solid rgba(34,211,238,0.85) !important;
+    color: #f8fafc !important;
     box-shadow:
-        0 0 12px rgba(34,211,238,0.30),
+        0 0 12px rgba(34,211,238,0.28),
         inset 0 1px 0 rgba(255,255,255,0.15) !important;
     transform: translateY(-1px);
 }
 
+/* Selected pill - bright emerald/cyan glow */
 section[data-testid="stSidebar"] button[aria-pressed="true"] {
     background: linear-gradient(135deg, #10b981 0%, #14b8a6 45%, #06b6d4 100%) !important;
     border: 1.5px solid rgba(255,255,255,0.92) !important;
     color: white !important;
-    font-weight: 800 !important;
+    font-weight: 850 !important;
     box-shadow:
-        0 0 8px rgba(16,185,129,0.90),
-        0 0 18px rgba(20,184,166,0.70),
-        0 0 34px rgba(6,182,212,0.55),
+        0 0 8px rgba(16,185,129,0.88),
+        0 0 18px rgba(20,184,166,0.68),
+        0 0 34px rgba(6,182,212,0.52),
         inset 0 1px 0 rgba(255,255,255,0.40) !important;
 }
 
+/* Tick selected */
 section[data-testid="stSidebar"] button[aria-pressed="true"]::before {
     content: "✓ ";
-    font-weight: 900;
+    font-weight: 950;
     color: #ffffff;
 }
 
+/* Refresh button */
 section[data-testid="stSidebar"] .stButton button {
     background: linear-gradient(135deg, #facc15 0%, #10b981 55%, #06b6d4 100%) !important;
     color: #082f49 !important;
@@ -97,6 +108,7 @@ section[data-testid="stSidebar"] .stButton button:hover {
         0 0 34px rgba(6,182,212,0.40) !important;
 }
 
+/* KPI cards */
 [data-testid="metric-container"] {
     background: rgba(255,255,255,0.94);
     border: 1px solid rgba(15,23,42,0.08);
@@ -105,6 +117,7 @@ section[data-testid="stSidebar"] .stButton button:hover {
     box-shadow: 0 10px 28px rgba(15,23,42,0.08);
 }
 
+/* Charts */
 [data-testid="stPlotlyChart"] {
     background: rgba(255,255,255,0.88);
     border-radius: 18px;
@@ -112,6 +125,7 @@ section[data-testid="stSidebar"] .stButton button:hover {
     box-shadow: 0 8px 22px rgba(15,23,42,0.06);
 }
 
+/* Dataframe */
 [data-testid="stDataFrame"] {
     border-radius: 16px;
     overflow: hidden;
