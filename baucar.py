@@ -7,11 +7,13 @@ st.set_page_config(page_title="Baucar CIDB", page_icon="📁", layout="wide")
 BAUCAR_CSV_URL = "https://docs.google.com/spreadsheets/d/1UmIsdnsz46lcPdLIEhTjry6E-ZOrNS3YDXKIqkxZV1s/export?format=csv&gid=1370653594"
 DATA_APP_CSV_URL = "https://docs.google.com/spreadsheets/d/1UmIsdnsz46lcPdLIEhTjry6E-ZOrNS3YDXKIqkxZV1s/export?format=csv&gid=1657707039"
 
+
 @st.cache_data(ttl=300)
 def load_csv(url):
     df = pd.read_csv(url)
     df.columns = df.columns.astype(str).str.strip()
     return df
+
 
 def clean_no_baucar(series):
     return (
@@ -22,9 +24,11 @@ def clean_no_baucar(series):
         .replace(["NAN", "NONE", ""], pd.NA)
     )
 
+
 def clean_id(series):
     numeric_id = pd.to_numeric(series, errors="coerce")
     return numeric_id.astype("Int64").astype(str).replace("<NA>", "")
+
 
 def standardize_bulan(series):
     bulan_map = {
@@ -41,13 +45,16 @@ def standardize_bulan(series):
         "NOV": "NOV", "NOVEMBER": "NOV",
         "DIS": "DIS", "DEC": "DIS", "DECEMBER": "DIS"
     }
+
     extracted = series.astype(str).str.extract(r"([A-Za-zÀ-ÿ]+)")[0]
     return extracted.astype(str).str.upper().str.strip().map(bulan_map)
+
 
 bulan_order = [
     "JAN", "FEB", "MAC", "APR", "MEI", "JUN",
     "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"
 ]
+
 
 baucar = load_csv(BAUCAR_CSV_URL)
 data_app = load_csv(DATA_APP_CSV_URL)
@@ -99,8 +106,15 @@ baucar["BULAN"] = standardize_bulan(baucar["BULAN_TAHUN"])
 
 data_app["IN_OUT"] = data_app["IN_OUT"].fillna("").astype(str).str.upper().str.strip()
 
+if "DATE" in data_app.columns:
+    data_app["DATE"] = pd.to_datetime(data_app["DATE"], errors="coerce", dayfirst=True)
+    data_app = data_app.sort_values("DATE")
+
+# Ambil 1 rekod terkini sahaja untuk setiap NO BAUCAR
+latest_app = data_app.drop_duplicates(subset=["NO_BAUCAR"], keep="last")
+
 df = baucar.merge(
-    data_app,
+    latest_app,
     on="NO_BAUCAR",
     how="left",
     suffixes=("", "_APP")
@@ -124,9 +138,6 @@ df["STATUS_KEMASKINI"] = df["STATUS_KEMASKINI"].replace({
 })
 
 df["BULAN"] = pd.Categorical(df["BULAN"], categories=bulan_order, ordered=True)
-
-if "DATE" in df.columns:
-    df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce", dayfirst=True)
 
 st.markdown("""
 <div style="text-align:center; padding-top:20px; padding-bottom:20px;">
@@ -168,13 +179,12 @@ if carian:
         )
     ]
 
-total_2024 = df_filter[df_filter["TAHUN"] == "2024"]["NO_BAUCAR"].nunique()
-total_2025 = df_filter[df_filter["TAHUN"] == "2025"]["NO_BAUCAR"].nunique()
-total_2026 = df_filter[df_filter["TAHUN"] == "2026"]["NO_BAUCAR"].nunique()
-total_semua = df_filter["NO_BAUCAR"].nunique()
+total_2024 = len(df_filter[df_filter["TAHUN"] == "2024"])
+total_2025 = len(df_filter[df_filter["TAHUN"] == "2025"])
+total_2026 = len(df_filter[df_filter["TAHUN"] == "2026"])
+total_semua = len(df_filter)
 
 col1, col2, col3, col4 = st.columns(4)
-
 col1.metric("Baucar 2024", f"{total_2024:,}")
 col2.metric("Baucar 2025", f"{total_2025:,}")
 col3.metric("Baucar 2026", f"{total_2026:,}")
