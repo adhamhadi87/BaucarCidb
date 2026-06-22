@@ -7,13 +7,11 @@ st.set_page_config(page_title="Baucar CIDB", page_icon="📁", layout="wide")
 BAUCAR_CSV_URL = "https://docs.google.com/spreadsheets/d/1UmIsdnsz46lcPdLIEhTjry6E-ZOrNS3YDXKIqkxZV1s/export?format=csv&gid=1370653594"
 DATA_APP_CSV_URL = "https://docs.google.com/spreadsheets/d/1UmIsdnsz46lcPdLIEhTjry6E-ZOrNS3YDXKIqkxZV1s/export?format=csv&gid=1657707039"
 
-
 @st.cache_data(ttl=300)
 def load_csv(url):
     df = pd.read_csv(url)
     df.columns = df.columns.astype(str).str.strip()
     return df
-
 
 def clean_no_baucar(series):
     return (
@@ -24,11 +22,9 @@ def clean_no_baucar(series):
         .replace(["NAN", "NONE", ""], pd.NA)
     )
 
-
 def clean_id(series):
     numeric_id = pd.to_numeric(series, errors="coerce")
     return numeric_id.astype("Int64").astype(str).replace("<NA>", "")
-
 
 def standardize_bulan(series):
     bulan_map = {
@@ -45,10 +41,8 @@ def standardize_bulan(series):
         "NOV": "NOV", "NOVEMBER": "NOV",
         "DIS": "DIS", "DEC": "DIS", "DECEMBER": "DIS"
     }
-
     extracted = series.astype(str).str.extract(r"([A-Za-zÀ-ÿ]+)")[0]
     return extracted.astype(str).str.upper().str.strip().map(bulan_map)
-
 
 bulan_order = [
     "JAN", "FEB", "MAC", "APR", "MEI", "JUN",
@@ -113,7 +107,6 @@ df = baucar.merge(
 )
 
 df["STATUS_KEMASKINI"] = df["IN_OUT"]
-
 df.loc[df["IN_OUT"].isna(), "STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
 
 df["STATUS_KEMASKINI"] = (
@@ -175,16 +168,17 @@ if carian:
         )
     ]
 
+total_2024 = len(baucar[baucar["TAHUN"] == "2024"])
+total_2025 = len(baucar[baucar["TAHUN"] == "2025"])
+total_2026 = len(baucar[baucar["TAHUN"] == "2026"])
+total_semua = len(baucar)
+
 col1, col2, col3, col4 = st.columns(4)
 
-col1.metric("Total Baucar", len(df_filter))
-col2.metric("Telah Dikemaskini", len(df_filter[df_filter["STATUS_KEMASKINI"].isin(["IN", "OUT"])]))
-col3.metric("Belum Dikemaskini", len(df_filter[df_filter["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]))
-col4.metric("Baucar Unik", df_filter["NO_BAUCAR"].nunique())
-
-col5, col6 = st.columns(2)
-col5.metric("Total IN", len(df_filter[df_filter["STATUS_KEMASKINI"] == "IN"]))
-col6.metric("Total OUT", len(df_filter[df_filter["STATUS_KEMASKINI"] == "OUT"]))
+col1.metric("Baucar 2024", f"{total_2024:,}")
+col2.metric("Baucar 2025", f"{total_2025:,}")
+col3.metric("Baucar 2026", f"{total_2026:,}")
+col4.metric("Total Keseluruhan Baucar", f"{total_semua:,}")
 
 st.divider()
 
