@@ -25,11 +25,7 @@ def load_id_lookup(file_path):
 
 
 def clean_text(series):
-    return (
-        series.fillna("")
-        .astype(str)
-        .str.strip()
-    )
+    return series.fillna("").astype(str).str.strip()
 
 
 def clean_no_baucar(series):
@@ -70,7 +66,6 @@ bulan_order = [
 
 baucar = load_csv(BAUCAR_CSV_URL)
 data_app = load_csv(DATA_APP_CSV_URL)
-
 id_lookup = load_id_lookup(ID_LOOKUP_FILE)
 
 baucar = baucar.rename(columns={
@@ -93,6 +88,7 @@ data_app = data_app.rename(columns={
 })
 
 id_lookup = id_lookup.rename(columns={
+    "NO STAF": "ID",
     "NO STAFF": "ID",
     "NAMA": "NAMA_ID",
     "NAME": "NAMA_ID"
@@ -187,9 +183,11 @@ bulan_list = [b for b in bulan_order if b in df["BULAN"].dropna().astype(str).un
 status_list = ["IN", "OUT", "BELUM DIKEMASKINI"]
 
 id_options = (
-    df[["ID_FILTER_LABEL", "ID"]]
+    df["ID_FILTER_LABEL"]
+    .dropna()
+    .astype(str)
     .drop_duplicates()
-    .sort_values("ID_FILTER_LABEL")["ID_FILTER_LABEL"]
+    .sort_values()
     .tolist()
 )
 
@@ -199,7 +197,7 @@ if "(Blank)" in id_options:
 tahun = st.sidebar.pills("Tahun", tahun_list, default=tahun_list, selection_mode="multi")
 bulan = st.sidebar.pills("Bulan", bulan_list, default=bulan_list, selection_mode="multi")
 status = st.sidebar.pills("Status", status_list, default=status_list, selection_mode="multi")
-id_filter = st.sidebar.pills("ID / Nama", id_options, default=id_options, selection_mode="multi")
+id_filter = st.sidebar.pills("Nama / ID", id_options, default=id_options, selection_mode="multi")
 
 carian = st.sidebar.text_input("Cari Nama / No Baucar / Email / Kotak")
 
