@@ -473,16 +473,6 @@ with tab3:
     belum = df_filter[~df_filter["ADA_DATA_APP"]]
     st.dataframe(belum[papar_cols], use_container_width=True, hide_index=True)
 
-with st.expander("Semakan Status"):
-    st.write("Jumlah BAUCAR:", len(baucar))
-    st.write("Jumlah DATA APP:", len(data_app))
-    st.write("NO BAUCAR unik DATA APP:", data_app["NO_BAUCAR_CLEAN"].nunique())
-    st.write("Nilai unik IN/OUT dalam DATA APP:", sorted(data_app["IN_OUT"].dropna().unique().tolist()))
-    st.write("IN:", len(df[df["STATUS_KEMASKINI"] == "IN"]))
-    st.write("OUT:", len(df[df["STATUS_KEMASKINI"] == "OUT"]))
-    st.write("BELUM DIKEMASKINI:", len(df[df["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]))
-    st.write("Ada dalam DATA APP tetapi IN/OUT kosong/tidak sah:", len(df[df["ADA_DATA_APP"] & ~df["IN_OUT"].isin(["IN", "OUT"])]))
-    st.write("Total selepas filter:", len(df_filter))
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
 
