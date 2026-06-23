@@ -267,53 +267,37 @@ id_lookup["NAMA_ID"] = clean_text(id_lookup["NAMA_ID"])
 id_lookup = id_lookup.drop_duplicates(subset=["ID"], keep="first")
 
 # ======================================================================
-# STATUS LOGIC - LOCKED
-# IN = NO BAUCAR ada status IN dalam DATA APP
-# OUT = NO BAUCAR ada status OUT dalam DATA APP
-# BELUM DIKEMASKINI = NO BAUCAR ada dalam BAUCAR tetapi tiada langsung dalam DATA APP
+# STATUS LOGIC - FINAL SIMPLE SET-BASED
+# JANGAN TUKAR:
+# IN = NO BAUCAR yang ada IN dalam DATA APP
+# OUT = NO BAUCAR yang ada OUT dalam DATA APP
+# BELUM DIKEMASKINI = NO BAUCAR ada dalam BAUCAR tetapi tiada dalam DATA APP
 # ======================================================================
 
-# Flags status daripada semua rekod DATA APP, bukan latest sahaja
-status_flags = (
-    data_app.groupby("NO_BAUCAR_CLEAN")
-    .agg(
-        HAS_IN=("IN_OUT", lambda x: (x == "IN").any()),
-        HAS_OUT=("IN_OUT", lambda x: (x == "OUT").any()),
-        ADA_DATA_APP=("NO_BAUCAR_CLEAN", "size")
-    )
-    .reset_index()
-)
+in_set = set(data_app.loc[data_app["IN_OUT"] == "IN", "NO_BAUCAR_CLEAN"])
+out_set = set(data_app.loc[data_app["IN_OUT"] == "OUT", "NO_BAUCAR_CLEAN"])
+app_set = set(data_app["NO_BAUCAR_CLEAN"])
 
-status_flags["ADA_DATA_APP"] = status_flags["ADA_DATA_APP"] > 0
-
-def make_status(row):
-    if not row["ADA_DATA_APP"]:
-        return "BELUM DIKEMASKINI"
-    if row["HAS_IN"] and row["HAS_OUT"]:
-        return "IN / OUT"
-    if row["HAS_IN"]:
-        return "IN"
-    if row["HAS_OUT"]:
-        return "OUT"
-    return "BELUM DIKEMASKINI"
-
-# Latest app only for details tarikh/kotak/email
 latest_app = data_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last").copy()
 latest_cols = [
     c for c in [
-        "NO_BAUCAR_CLEAN", "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL", "BULAN_TAHUN_APP"
+        "NO_BAUCAR_CLEAN", "IN_OUT",
+        "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL", "BULAN_TAHUN_APP"
     ]
     if c in latest_app.columns
 ]
 
-df = baucar.merge(status_flags, on="NO_BAUCAR_CLEAN", how="left")
-df = df.merge(latest_app[latest_cols], on="NO_BAUCAR_CLEAN", how="left")
+df = baucar.merge(latest_app[latest_cols], on="NO_BAUCAR_CLEAN", how="left")
 df = df.merge(id_lookup[["ID", "NAMA_ID"]], on="ID", how="left")
 
-df["HAS_IN"] = df["HAS_IN"].fillna(False).astype(bool)
-df["HAS_OUT"] = df["HAS_OUT"].fillna(False).astype(bool)
-df["ADA_DATA_APP"] = df["ADA_DATA_APP"].fillna(False).astype(bool)
-df["STATUS_KEMASKINI"] = df.apply(make_status, axis=1)
+df["HAS_IN"] = df["NO_BAUCAR_CLEAN"].isin(in_set)
+df["HAS_OUT"] = df["NO_BAUCAR_CLEAN"].isin(out_set)
+df["ADA_DATA_APP"] = df["NO_BAUCAR_CLEAN"].isin(app_set)
+
+df["STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
+df.loc[df["HAS_IN"] & ~df["HAS_OUT"], "STATUS_KEMASKINI"] = "IN"
+df.loc[df["HAS_OUT"] & ~df["HAS_IN"], "STATUS_KEMASKINI"] = "OUT"
+df.loc[df["HAS_IN"] & df["HAS_OUT"], "STATUS_KEMASKINI"] = "IN / OUT"
 
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
 df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
@@ -382,18 +366,18 @@ df_filter = df[
     & df["ID_FILTER_LABEL"].astype(str).isin(id_selected)
 ].copy()
 
-# Filter status khas supaya klik IN / OUT ada nilai jika baucar pernah ada IN / OUT dalam DATA APP
+# Filter status terus guna set daripada DATA APP
 if status:
     status_mask = pd.Series(False, index=df_filter.index)
 
     if "IN" in status:
-        status_mask = status_mask | df_filter["HAS_IN"]
+        status_mask = status_mask | df_filter["NO_BAUCAR_CLEAN"].isin(in_set)
 
     if "OUT" in status:
-        status_mask = status_mask | df_filter["HAS_OUT"]
+        status_mask = status_mask | df_filter["NO_BAUCAR_CLEAN"].isin(out_set)
 
     if "BELUM DIKEMASKINI" in status:
-        status_mask = status_mask | (~df_filter["ADA_DATA_APP"])
+        status_mask = status_mask | (~df_filter["NO_BAUCAR_CLEAN"].isin(app_set))
 
     df_filter = df_filter[status_mask].copy()
 
@@ -499,9 +483,10 @@ with st.expander("Semakan Status"):
     st.write("Jumlah BAUCAR:", len(baucar))
     st.write("Jumlah DATA APP:", len(data_app))
     st.write("NO BAUCAR unik DATA APP:", data_app["NO_BAUCAR_CLEAN"].nunique())
-    st.write("IN:", int(df["HAS_IN"].sum()))
-    st.write("OUT:", int(df["HAS_OUT"].sum()))
-    st.write("BELUM DIKEMASKINI:", int((~df["ADA_DATA_APP"]).sum()))
+    st.write("Nilai unik IN/OUT dalam DATA APP:", sorted(data_app["IN_OUT"].dropna().unique().tolist()))
+    st.write("IN daripada DATA APP:", len(in_set))
+    st.write("OUT daripada DATA APP:", len(out_set))
+    st.write("BELUM DIKEMASKINI:", len(df[~df["NO_BAUCAR_CLEAN"].isin(app_set)]))
     st.write("Total selepas filter:", len(df_filter))
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
