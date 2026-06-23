@@ -277,35 +277,48 @@ id_lookup["NAMA_ID"] = clean_text(id_lookup["NAMA_ID"])
 id_lookup = id_lookup.drop_duplicates(subset=["ID"], keep="first")
 
 # ======================================================================
-# STATUS LOGIC - LOCKED
-# IN = NO BAUCAR ada dalam DATA APP dan IN/OUT terkini = IN
-# OUT = NO BAUCAR ada dalam DATA APP dan IN/OUT terkini = OUT
-# BELUM DIKEMASKINI = NO BAUCAR ada dalam BAUCAR tetapi tiada langsung dalam DATA APP
+# STATUS LOGIC - FINAL LOCKED
+#
+# IN  = NO BAUCAR ada dalam DATA APP dan status terkini IN
+# OUT = NO BAUCAR ada dalam DATA APP dan status terkini OUT
+# BELUM DIKEMASKINI = NO BAUCAR ada dalam BAUCAR tetapi tiada dalam DATA APP
+#
+# JANGAN TUKAR LOGIC INI
 # ======================================================================
 
-# Susunan asal DATA APP sebagai fallback jika DATE kosong/tidak sah
+# Simpan row asal untuk tentukan rekod terakhir jika DATE kosong / sama
 data_app["_ROW_ORDER"] = range(len(data_app))
 
-# Set semua NO BAUCAR yang wujud dalam DATA APP
+# Set semua baucar yang wujud dalam DATA APP
 app_set = set(data_app["NO_BAUCAR_CLEAN"])
 
-# Guna hanya row DATA APP yang ada IN/OUT sah untuk tentukan status terkini
-valid_app = data_app[data_app["IN_OUT"].isin(["IN", "OUT"])].copy()
+# Guna row DATA APP yang statusnya sah sahaja untuk tentukan IN / OUT terkini
+valid_status_app = data_app[data_app["IN_OUT"].isin(["IN", "OUT"])].copy()
 
-if "DATE" in valid_app.columns:
-    valid_app["_DATE_SORT"] = pd.to_datetime(valid_app["DATE"], errors="coerce", dayfirst=True)
-    valid_app = valid_app.sort_values(
+if "DATE" in valid_status_app.columns:
+    valid_status_app["_DATE_SORT"] = pd.to_datetime(
+        valid_status_app["DATE"],
+        errors="coerce",
+        dayfirst=True
+    )
+    valid_status_app = valid_status_app.sort_values(
         by=["_DATE_SORT", "_ROW_ORDER"],
         ascending=[True, True],
         na_position="first"
     )
 else:
-    valid_app = valid_app.sort_values("_ROW_ORDER")
+    valid_status_app = valid_status_app.sort_values("_ROW_ORDER")
 
-latest_status = valid_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last").copy()
+latest_status = valid_status_app.drop_duplicates(
+    subset=["NO_BAUCAR_CLEAN"],
+    keep="last"
+).copy()
 
 # Detail terkini untuk DATE / KOTAK / EMAIL ikut row terakhir DATA APP
-latest_app = data_app.sort_values("_ROW_ORDER").drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last").copy()
+latest_app = data_app.sort_values("_ROW_ORDER").drop_duplicates(
+    subset=["NO_BAUCAR_CLEAN"],
+    keep="last"
+).copy()
 
 latest_cols = [
     c for c in [
@@ -332,10 +345,6 @@ df["ADA_DATA_APP"] = df["NO_BAUCAR_CLEAN"].isin(app_set)
 df["STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
 df.loc[df["ADA_DATA_APP"] & (df["IN_OUT"] == "IN"), "STATUS_KEMASKINI"] = "IN"
 df.loc[df["ADA_DATA_APP"] & (df["IN_OUT"] == "OUT"), "STATUS_KEMASKINI"] = "OUT"
-
-# Nota:
-# Kalau NO BAUCAR ada dalam DATA APP tetapi semua row IN/OUT kosong,
-# ia tidak akan masuk IN/OUT. Semak data di DATA APP untuk row tersebut.
 
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
 df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
@@ -410,11 +419,11 @@ df_filter = df[
     & df["ID_FILTER_LABEL"].astype(str).isin(id_selected)
 ].copy()
 
-# Filter status:
-# kosong = semua
-# IN = STATUS_KEMASKINI IN
-# OUT = STATUS_KEMASKINI OUT
-# BELUM DIKEMASKINI = STATUS_KEMASKINI BELUM DIKEMASKINI
+# Status filter:
+# Kosong = semua status
+# IN = status terkini IN
+# OUT = status terkini OUT
+# BELUM DIKEMASKINI = tiada dalam DATA APP
 if status:
     df_filter = df_filter[
         df_filter["STATUS_KEMASKINI"].astype(str).isin(status)
