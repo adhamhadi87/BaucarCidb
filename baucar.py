@@ -152,13 +152,20 @@ def clean_text(series):
 
 
 def clean_no_baucar(series):
-    return (
+    cleaned = (
         series.fillna("")
         .astype(str)
         .str.strip()
         .str.upper()
-        .str.replace(r"\s+", "", regex=True)
+        .str.replace(r"\.0$", "", regex=True)
+        .str.replace(r"[^A-Z0-9]", "", regex=True)
     )
+
+    cleaned = cleaned.apply(
+        lambda x: str(int(x)) if isinstance(x, str) and x.isdigit() and x != "" else x
+    )
+
+    return cleaned
 
 
 def normalize_status(series):
@@ -267,18 +274,16 @@ id_lookup["NAMA_ID"] = clean_text(id_lookup["NAMA_ID"])
 id_lookup = id_lookup.drop_duplicates(subset=["ID"], keep="first")
 
 # ======================================================================
-# STATUS LOGIC - FINAL SIMPLE SET-BASED
-# JANGAN TUKAR:
-# IN = NO BAUCAR yang ada IN dalam DATA APP
-# OUT = NO BAUCAR yang ada OUT dalam DATA APP
-# BELUM DIKEMASKINI = NO BAUCAR ada dalam BAUCAR tetapi tiada dalam DATA APP
+# STATUS LOGIC - LOCKED
+# IN = NO BAUCAR ada dalam DATA APP dan IN/OUT terkini = IN
+# OUT = NO BAUCAR ada dalam DATA APP dan IN/OUT terkini = OUT
+# BELUM DIKEMASKINI = NO BAUCAR ada dalam BAUCAR tetapi tiada langsung dalam DATA APP
 # ======================================================================
 
-in_set = set(data_app.loc[data_app["IN_OUT"] == "IN", "NO_BAUCAR_CLEAN"])
-out_set = set(data_app.loc[data_app["IN_OUT"] == "OUT", "NO_BAUCAR_CLEAN"])
 app_set = set(data_app["NO_BAUCAR_CLEAN"])
 
 latest_app = data_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last").copy()
+
 latest_cols = [
     c for c in [
         "NO_BAUCAR_CLEAN", "IN_OUT",
@@ -290,14 +295,11 @@ latest_cols = [
 df = baucar.merge(latest_app[latest_cols], on="NO_BAUCAR_CLEAN", how="left")
 df = df.merge(id_lookup[["ID", "NAMA_ID"]], on="ID", how="left")
 
-df["HAS_IN"] = df["NO_BAUCAR_CLEAN"].isin(in_set)
-df["HAS_OUT"] = df["NO_BAUCAR_CLEAN"].isin(out_set)
 df["ADA_DATA_APP"] = df["NO_BAUCAR_CLEAN"].isin(app_set)
 
 df["STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
-df.loc[df["HAS_IN"] & ~df["HAS_OUT"], "STATUS_KEMASKINI"] = "IN"
-df.loc[df["HAS_OUT"] & ~df["HAS_IN"], "STATUS_KEMASKINI"] = "OUT"
-df.loc[df["HAS_IN"] & df["HAS_OUT"], "STATUS_KEMASKINI"] = "IN / OUT"
+df.loc[df["ADA_DATA_APP"] & (df["IN_OUT"] == "IN"), "STATUS_KEMASKINI"] = "IN"
+df.loc[df["ADA_DATA_APP"] & (df["IN_OUT"] == "OUT"), "STATUS_KEMASKINI"] = "OUT"
 
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
 df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
@@ -366,20 +368,12 @@ df_filter = df[
     & df["ID_FILTER_LABEL"].astype(str).isin(id_selected)
 ].copy()
 
-# Filter status terus guna set daripada DATA APP
-if status:
-    status_mask = pd.Series(False, index=df_filter.index)
+# Filter status ikut 3 status rasmi sahaja
+status_selected = status if status else status_list
 
-    if "IN" in status:
-        status_mask = status_mask | df_filter["NO_BAUCAR_CLEAN"].isin(in_set)
-
-    if "OUT" in status:
-        status_mask = status_mask | df_filter["NO_BAUCAR_CLEAN"].isin(out_set)
-
-    if "BELUM DIKEMASKINI" in status:
-        status_mask = status_mask | (~df_filter["NO_BAUCAR_CLEAN"].isin(app_set))
-
-    df_filter = df_filter[status_mask].copy()
+df_filter = df_filter[
+    df_filter["STATUS_KEMASKINI"].astype(str).isin(status_selected)
+].copy()
 
 total_2024 = len(df_filter[df_filter["TAHUN"] == "2024"])
 total_2025 = len(df_filter[df_filter["TAHUN"] == "2025"])
@@ -484,9 +478,10 @@ with st.expander("Semakan Status"):
     st.write("Jumlah DATA APP:", len(data_app))
     st.write("NO BAUCAR unik DATA APP:", data_app["NO_BAUCAR_CLEAN"].nunique())
     st.write("Nilai unik IN/OUT dalam DATA APP:", sorted(data_app["IN_OUT"].dropna().unique().tolist()))
-    st.write("IN daripada DATA APP:", len(in_set))
-    st.write("OUT daripada DATA APP:", len(out_set))
-    st.write("BELUM DIKEMASKINI:", len(df[~df["NO_BAUCAR_CLEAN"].isin(app_set)]))
+    st.write("IN:", len(df[df["STATUS_KEMASKINI"] == "IN"]))
+    st.write("OUT:", len(df[df["STATUS_KEMASKINI"] == "OUT"]))
+    st.write("BELUM DIKEMASKINI:", len(df[df["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]))
+    st.write("Ada dalam DATA APP tetapi IN/OUT kosong/tidak sah:", len(df[df["ADA_DATA_APP"] & ~df["IN_OUT"].isin(["IN", "OUT"])]))
     st.write("Total selepas filter:", len(df_filter))
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
