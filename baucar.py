@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import time
 
 st.set_page_config(page_title="E-FILING BKA", page_icon="📁", layout="wide")
 
@@ -133,9 +134,12 @@ button[data-baseweb="tab"] {
 """, unsafe_allow_html=True)
 
 
-@st.cache_data(ttl=300)
 def load_csv(url):
-    df = pd.read_csv(url, dtype=str)
+    # Auto baca semula Google Sheet setiap kali app rerun / filter diklik.
+    # cache_bust elak browser/server guna data lama.
+    separator = "&" if "?" in url else "?"
+    fresh_url = f"{url}{separator}_refresh={int(time.time())}"
+    df = pd.read_csv(fresh_url, dtype=str)
     df.columns = df.columns.astype(str).str.strip()
     return df
 
@@ -373,8 +377,7 @@ def set_default_filters():
 
 
 def refresh_all():
-    # Refresh filter + paksa baca semula Google Sheet
-    st.cache_data.clear()
+    # Reset filter. Google Sheet memang auto dibaca semula setiap rerun.
     set_default_filters()
 
 
