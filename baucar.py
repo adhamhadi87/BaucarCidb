@@ -282,17 +282,35 @@ id_lookup = id_lookup.drop_duplicates(subset=["ID"], keep="first")
 
 app_set = set(data_app["NO_BAUCAR_CLEAN"])
 
-latest_app = data_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last").copy()
+# Simpan susunan row asal sebagai fallback jika DATE kosong/tidak sah
+data_app["_ROW_ORDER"] = range(len(data_app))
+
+# Guna hanya rekod DATA APP yang ada status sah IN / OUT untuk menentukan status terkini
+valid_app = data_app[data_app["IN_OUT"].isin(["IN", "OUT"])].copy()
+
+if "DATE" in valid_app.columns:
+    valid_app = valid_app.sort_values(["DATE", "_ROW_ORDER"], na_position="last")
+else:
+    valid_app = valid_app.sort_values("_ROW_ORDER")
+
+latest_status = valid_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last").copy()
+
+# Ambil detail terkini daripada semua DATA APP untuk DATE / KOTAK / EMAIL
+latest_app = data_app.sort_values("_ROW_ORDER").drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last").copy()
 
 latest_cols = [
     c for c in [
-        "NO_BAUCAR_CLEAN", "IN_OUT",
-        "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL", "BULAN_TAHUN_APP"
+        "NO_BAUCAR_CLEAN", "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL", "BULAN_TAHUN_APP"
     ]
     if c in latest_app.columns
 ]
 
 df = baucar.merge(latest_app[latest_cols], on="NO_BAUCAR_CLEAN", how="left")
+df = df.merge(
+    latest_status[["NO_BAUCAR_CLEAN", "IN_OUT"]],
+    on="NO_BAUCAR_CLEAN",
+    how="left"
+)
 df = df.merge(id_lookup[["ID", "NAMA_ID"]], on="ID", how="left")
 
 df["ADA_DATA_APP"] = df["NO_BAUCAR_CLEAN"].isin(app_set)
@@ -300,6 +318,10 @@ df["ADA_DATA_APP"] = df["NO_BAUCAR_CLEAN"].isin(app_set)
 df["STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
 df.loc[df["ADA_DATA_APP"] & (df["IN_OUT"] == "IN"), "STATUS_KEMASKINI"] = "IN"
 df.loc[df["ADA_DATA_APP"] & (df["IN_OUT"] == "OUT"), "STATUS_KEMASKINI"] = "OUT"
+
+# Jika ada dalam DATA APP tetapi tiada status sah IN/OUT, ia tidak dimasukkan sebagai BELUM DIKEMASKINI
+# kerana definisi BELUM DIKEMASKINI ialah tiada langsung dalam DATA APP.
+df.loc[df["ADA_DATA_APP"] & (~df["IN_OUT"].isin(["IN", "OUT"])), "STATUS_KEMASKINI"] = "OUT"
 
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
 df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
