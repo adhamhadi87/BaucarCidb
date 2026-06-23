@@ -2,7 +2,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import time
 
 st.set_page_config(page_title="E-FILING BKA", page_icon="📁", layout="wide")
 
@@ -134,12 +133,11 @@ button[data-baseweb="tab"] {
 """, unsafe_allow_html=True)
 
 
+@st.cache_data(ttl=120, show_spinner=False)
 def load_csv(url):
-    # Auto baca semula Google Sheet setiap kali app rerun / filter diklik.
-    # cache_bust elak browser/server guna data lama.
-    separator = "&" if "?" in url else "?"
-    fresh_url = f"{url}{separator}_refresh={int(time.time())}"
-    df = pd.read_csv(fresh_url, dtype=str)
+    # Cache 2 minit supaya filter tidak lambat.
+    # Tekan Refresh Filter untuk paksa baca semula Google Sheet.
+    df = pd.read_csv(url, dtype=str)
     df.columns = df.columns.astype(str).str.strip()
     return df
 
@@ -203,9 +201,10 @@ def standardize_bulan(series):
 
 bulan_order = ["JAN", "FEB", "MAC", "APR", "MEI", "JUN", "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"]
 
-baucar = load_csv(BAUCAR_CSV_URL)
-data_app = load_csv(DATA_APP_CSV_URL)
-id_lookup = load_id_lookup(ID_LOOKUP_FILE)
+with st.spinner("Loading data dari Google Sheet..."):
+    baucar = load_csv(BAUCAR_CSV_URL)
+    data_app = load_csv(DATA_APP_CSV_URL)
+    id_lookup = load_id_lookup(ID_LOOKUP_FILE)
 
 baucar = baucar.rename(columns={
     "BULAN/TAHUN": "BULAN_TAHUN",
@@ -377,7 +376,8 @@ def set_default_filters():
 
 
 def refresh_all():
-    # Reset filter. Google Sheet memang auto dibaca semula setiap rerun.
+    # Reset filter + paksa baca semula Google Sheet
+    st.cache_data.clear()
     set_default_filters()
 
 
