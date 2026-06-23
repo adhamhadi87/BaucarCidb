@@ -280,27 +280,38 @@ id_lookup = id_lookup.drop_duplicates(subset=["ID"], keep="first")
 # BELUM DIKEMASKINI = NO BAUCAR ada dalam BAUCAR tetapi tiada langsung dalam DATA APP
 # ======================================================================
 
-app_set = set(data_app["NO_BAUCAR_CLEAN"])
-
-# Simpan susunan row asal sebagai fallback jika DATE kosong/tidak sah
+# Susunan asal DATA APP sebagai fallback jika DATE kosong/tidak sah
 data_app["_ROW_ORDER"] = range(len(data_app))
 
-# Guna hanya rekod DATA APP yang ada status sah IN / OUT untuk menentukan status terkini
+# Set semua NO BAUCAR yang wujud dalam DATA APP
+app_set = set(data_app["NO_BAUCAR_CLEAN"])
+
+# Guna hanya row DATA APP yang ada IN/OUT sah untuk tentukan status terkini
 valid_app = data_app[data_app["IN_OUT"].isin(["IN", "OUT"])].copy()
 
 if "DATE" in valid_app.columns:
-    valid_app = valid_app.sort_values(["DATE", "_ROW_ORDER"], na_position="last")
+    valid_app["_DATE_SORT"] = pd.to_datetime(valid_app["DATE"], errors="coerce", dayfirst=True)
+    valid_app = valid_app.sort_values(
+        by=["_DATE_SORT", "_ROW_ORDER"],
+        ascending=[True, True],
+        na_position="first"
+    )
 else:
     valid_app = valid_app.sort_values("_ROW_ORDER")
 
 latest_status = valid_app.drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last").copy()
 
-# Ambil detail terkini daripada semua DATA APP untuk DATE / KOTAK / EMAIL
+# Detail terkini untuk DATE / KOTAK / EMAIL ikut row terakhir DATA APP
 latest_app = data_app.sort_values("_ROW_ORDER").drop_duplicates(subset=["NO_BAUCAR_CLEAN"], keep="last").copy()
 
 latest_cols = [
     c for c in [
-        "NO_BAUCAR_CLEAN", "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL", "BULAN_TAHUN_APP"
+        "NO_BAUCAR_CLEAN",
+        "DATE",
+        "NO_KOTAK",
+        "KOTAK_TAMBAHAN",
+        "EMAIL",
+        "BULAN_TAHUN_APP"
     ]
     if c in latest_app.columns
 ]
@@ -319,9 +330,9 @@ df["STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
 df.loc[df["ADA_DATA_APP"] & (df["IN_OUT"] == "IN"), "STATUS_KEMASKINI"] = "IN"
 df.loc[df["ADA_DATA_APP"] & (df["IN_OUT"] == "OUT"), "STATUS_KEMASKINI"] = "OUT"
 
-# Jika ada dalam DATA APP tetapi tiada status sah IN/OUT, ia tidak dimasukkan sebagai BELUM DIKEMASKINI
-# kerana definisi BELUM DIKEMASKINI ialah tiada langsung dalam DATA APP.
-df.loc[df["ADA_DATA_APP"] & (~df["IN_OUT"].isin(["IN", "OUT"])), "STATUS_KEMASKINI"] = "OUT"
+# Nota:
+# Kalau NO BAUCAR ada dalam DATA APP tetapi semua row IN/OUT kosong,
+# ia tidak akan masuk IN/OUT. Semak data di DATA APP untuk row tersebut.
 
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
 df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
@@ -361,6 +372,12 @@ def set_default_filters():
     st.session_state["id_filter"] = []
 
 
+def refresh_all():
+    # Refresh filter + paksa baca semula Google Sheet
+    st.cache_data.clear()
+    set_default_filters()
+
+
 for key in ["tahun_filter", "bulan_filter", "status_filter", "id_filter"]:
     if key not in st.session_state:
         set_default_filters()
@@ -378,7 +395,7 @@ status = st.sidebar.pills("Status", status_list, selection_mode="multi", key="st
 st.sidebar.markdown("#### Nama / ID")
 id_filter = st.sidebar.pills("Nama / ID", id_options, selection_mode="multi", key="id_filter", label_visibility="collapsed")
 
-st.sidebar.button("Refresh Filter", on_click=set_default_filters, use_container_width=True)
+st.sidebar.button("Refresh Filter", on_click=refresh_all, use_container_width=True)
 
 tahun_selected = tahun if tahun else tahun_list
 bulan_selected = bulan if bulan else bulan_list
@@ -390,12 +407,15 @@ df_filter = df[
     & df["ID_FILTER_LABEL"].astype(str).isin(id_selected)
 ].copy()
 
-# Filter status ikut 3 status rasmi sahaja
-status_selected = status if status else status_list
-
-df_filter = df_filter[
-    df_filter["STATUS_KEMASKINI"].astype(str).isin(status_selected)
-].copy()
+# Filter status:
+# kosong = semua
+# IN = STATUS_KEMASKINI IN
+# OUT = STATUS_KEMASKINI OUT
+# BELUM DIKEMASKINI = STATUS_KEMASKINI BELUM DIKEMASKINI
+if status:
+    df_filter = df_filter[
+        df_filter["STATUS_KEMASKINI"].astype(str).isin(status)
+    ].copy()
 
 total_2024 = len(df_filter[df_filter["TAHUN"] == "2024"])
 total_2025 = len(df_filter[df_filter["TAHUN"] == "2025"])
