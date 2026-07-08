@@ -3,7 +3,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 st.set_page_config(page_title="E-FILING BKA", page_icon="📁", layout="wide")
 
@@ -141,9 +140,7 @@ def load_csv(url):
     # Tekan Sync Now untuk paksa baca semula Google Sheet.
     df = pd.read_csv(url, dtype=str)
     df.columns = df.columns.astype(str).str.strip()
-    loaded_at = datetime.now(
-        ZoneInfo("Asia/Kuala_Lumpur")
-    ).strftime("%d/%m/%Y %I:%M:%S %p")
+    loaded_at = datetime.now().strftime("%d/%m/%Y %I:%M:%S %p")
     return df, loaded_at
 
 
@@ -211,7 +208,7 @@ with st.spinner("Loading data dari Google Sheet..."):
     data_app, data_app_loaded_at = load_csv(DATA_APP_CSV_URL)
     id_lookup = load_id_lookup(ID_LOOKUP_FILE)
 
-last_sync_time = data_app_loaded_at
+last_sync_time = max(baucar_loaded_at, data_app_loaded_at)
 
 baucar = baucar.rename(columns={
     "BULAN/TAHUN": "BULAN_TAHUN",
@@ -361,9 +358,16 @@ st.markdown(f"""
 <div style="text-align:center; padding-top:0px; padding-bottom:8px;">
     <h1 style="font-size:46px; margin-bottom:2px;">E-FILING BKA</h1>
     <p style="font-size:18px; color:gray; margin-top:0px;">Sistem Pengurusan Keluar Masuk Baucar</p>
-    <p style="font-size:14px; color:#64748b; margin-top:-6px;">Last Sync Malaysia Time: {last_sync_time}</p>
+    <p style="font-size:14px; color:#64748b; margin-top:-6px;">Last Sync: {last_sync_time}</p>
 </div>
 """, unsafe_allow_html=True)
+
+
+
+def sync_now():
+    # Paksa baca semula Google Sheet tanpa ubah filter semasa
+    st.cache_data.clear()
+    st.rerun()
 
 st.sidebar.title("✨ Filter")
 st.sidebar.caption(f"🟢 Last Sync: {last_sync_time}")
@@ -399,12 +403,9 @@ def refresh_all():
     st.cache_data.clear()
     set_default_filters()
     st.rerun()
-
-
-def sync_now():
-    # Paksa baca semula Google Sheet tanpa ubah filter semasa
-    st.cache_data.clear()
     st.rerun()
+
+
 
 
 for key in ["tahun_filter", "bulan_filter", "status_filter", "id_filter"]:
