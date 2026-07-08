@@ -133,6 +133,57 @@ button[data-baseweb="tab"] {
 """, unsafe_allow_html=True)
 
 
+
+# =========================
+# PASSWORD PROTECTION
+# =========================
+# Untuk Streamlit Cloud, letak password di:
+# App settings > Secrets
+#
+# Contoh secrets:
+# APP_PASSWORD = "password_anda"
+#
+# Jika tiada secrets, app akan guna default password di bawah.
+DEFAULT_PASSWORD = "bka123"
+
+try:
+    APP_PASSWORD = st.secrets["APP_PASSWORD"]
+except Exception:
+    APP_PASSWORD = DEFAULT_PASSWORD
+
+
+def login_screen():
+    st.markdown("""
+    <div style="max-width:520px; margin:70px auto 20px auto; padding:30px;
+                background:white; border-radius:22px;
+                box-shadow:0 15px 40px rgba(15,23,42,0.12); text-align:center;">
+        <h1 style="margin-bottom:6px;">E-FILING BKA</h1>
+        <p style="color:gray; margin-top:0;">Sila masukkan password untuk akses dashboard</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.form("login_form", clear_on_submit=False):
+        password = st.text_input("Password", type="password")
+        submit = st.form_submit_button("Masuk", use_container_width=True)
+
+        if submit:
+            if password == APP_PASSWORD:
+                st.session_state["authenticated"] = True
+                st.rerun()
+            else:
+                st.error("Password salah. Sila cuba semula.")
+
+
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+
+if not st.session_state["authenticated"]:
+    login_screen()
+    st.stop()
+
+
+
+
 @st.cache_data(ttl=120, show_spinner=False)
 def load_csv(url):
     # Cache 2 minit supaya filter tidak lambat.
@@ -358,6 +409,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.sidebar.title("✨ Filter")
+if st.sidebar.button("Logout", use_container_width=True):
+    st.session_state["authenticated"] = False
+    st.rerun()
 
 tahun_list = sorted(df["TAHUN"].dropna().astype(str).unique())
 bulan_list = [b for b in bulan_order if b in df["BULAN"].dropna().astype(str).unique()]
