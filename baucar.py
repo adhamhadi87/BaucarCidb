@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from datetime import datetime
 
 st.set_page_config(page_title="E-FILING BKA", page_icon="📁", layout="wide")
 
@@ -133,64 +134,14 @@ button[data-baseweb="tab"] {
 """, unsafe_allow_html=True)
 
 
-
-# =========================
-# PASSWORD PROTECTION
-# =========================
-# Untuk Streamlit Cloud, letak password di:
-# App settings > Secrets
-#
-# Contoh secrets:
-# APP_PASSWORD = "password_anda"
-#
-# Jika tiada secrets, app akan guna default password di bawah.
-DEFAULT_PASSWORD = "bka123"
-
-try:
-    APP_PASSWORD = st.secrets["APP_PASSWORD"]
-except Exception:
-    APP_PASSWORD = DEFAULT_PASSWORD
-
-
-def login_screen():
-    st.markdown("""
-    <div style="max-width:520px; margin:70px auto 20px auto; padding:30px;
-                background:white; border-radius:22px;
-                box-shadow:0 15px 40px rgba(15,23,42,0.12); text-align:center;">
-        <h1 style="margin-bottom:6px;">E-FILING BKA</h1>
-        <p style="color:gray; margin-top:0;">Sila masukkan password untuk akses dashboard</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    with st.form("login_form", clear_on_submit=False):
-        password = st.text_input("Password", type="password")
-        submit = st.form_submit_button("Masuk", use_container_width=True)
-
-        if submit:
-            if password == APP_PASSWORD:
-                st.session_state["authenticated"] = True
-                st.rerun()
-            else:
-                st.error("Password salah. Sila cuba semula.")
-
-
-if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = False
-
-if not st.session_state["authenticated"]:
-    login_screen()
-    st.stop()
-
-
-
-
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_csv(url):
-    # Cache 2 minit supaya filter tidak lambat.
-    # Tekan Refresh Filter untuk paksa baca semula Google Sheet.
+    # Cache 10 minit supaya dashboard laju.
+    # Tekan Sync Now untuk paksa baca semula Google Sheet.
     df = pd.read_csv(url, dtype=str)
     df.columns = df.columns.astype(str).str.strip()
-    return df
+    loaded_at = datetime.now().strftime("%d/%m/%Y %I:%M:%S %p")
+    return df, loaded_at
 
 
 @st.cache_data(ttl=300)
@@ -253,9 +204,11 @@ def standardize_bulan(series):
 bulan_order = ["JAN", "FEB", "MAC", "APR", "MEI", "JUN", "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"]
 
 with st.spinner("Loading data dari Google Sheet..."):
-    baucar = load_csv(BAUCAR_CSV_URL)
-    data_app = load_csv(DATA_APP_CSV_URL)
+    baucar, baucar_loaded_at = load_csv(BAUCAR_CSV_URL)
+    data_app, data_app_loaded_at = load_csv(DATA_APP_CSV_URL)
     id_lookup = load_id_lookup(ID_LOOKUP_FILE)
+
+last_sync_time = max(baucar_loaded_at, data_app_loaded_at)
 
 baucar = baucar.rename(columns={
     "BULAN/TAHUN": "BULAN_TAHUN",
@@ -401,17 +354,17 @@ df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
 df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
 df.loc[df["ID_FILTER_LABEL"].fillna("").astype(str).str.strip() == "", "ID_FILTER_LABEL"] = "(Blank)"
 
-st.markdown("""
+st.markdown(f"""
 <div style="text-align:center; padding-top:0px; padding-bottom:8px;">
     <h1 style="font-size:46px; margin-bottom:2px;">E-FILING BKA</h1>
     <p style="font-size:18px; color:gray; margin-top:0px;">Sistem Pengurusan Keluar Masuk Baucar</p>
+    <p style="font-size:14px; color:#64748b; margin-top:-6px;">Last Sync: {last_sync_time}</p>
 </div>
 """, unsafe_allow_html=True)
 
 st.sidebar.title("✨ Filter")
-if st.sidebar.button("Logout", use_container_width=True):
-    st.session_state["authenticated"] = False
-    st.rerun()
+st.sidebar.caption(f"🟢 Last Sync: {last_sync_time}")
+st.sidebar.button("🔄 Sync Now", on_click=sync_now, use_container_width=True)
 
 tahun_list = sorted(df["TAHUN"].dropna().astype(str).unique())
 bulan_list = [b for b in bulan_order if b in df["BULAN"].dropna().astype(str).unique()]
@@ -442,6 +395,13 @@ def refresh_all():
     # Reset filter + paksa baca semula Google Sheet
     st.cache_data.clear()
     set_default_filters()
+    st.rerun()
+
+
+def sync_now():
+    # Paksa baca semula Google Sheet tanpa ubah filter semasa
+    st.cache_data.clear()
+    st.rerun()
 
 
 for key in ["tahun_filter", "bulan_filter", "status_filter", "id_filter"]:
@@ -461,7 +421,7 @@ status = st.sidebar.pills("Status", status_list, selection_mode="multi", key="st
 st.sidebar.markdown("#### Nama / ID")
 id_filter = st.sidebar.pills("Nama / ID", id_options, selection_mode="multi", key="id_filter", label_visibility="collapsed")
 
-st.sidebar.button("Refresh Filter", on_click=refresh_all, use_container_width=True)
+st.sidebar.button("Reset Filter + Refresh Data", on_click=refresh_all, use_container_width=True)
 
 tahun_selected = tahun if tahun else tahun_list
 bulan_selected = bulan if bulan else bulan_list
