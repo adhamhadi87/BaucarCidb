@@ -6,7 +6,7 @@ import plotly.express as px
 st.set_page_config(page_title="E-FILING BKA", page_icon="📁", layout="wide")
 
 BAUCAR_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1370653594&single=true&output=csv"
-DATA_APP_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1657707039&single=true&output=csv"
+APPLIKASI_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1571972700&single=true&output=csv"
 ID_LOOKUP_FILE = "list ID.xlsx"
 
 st.markdown("""
@@ -250,7 +250,7 @@ bulan_order = ["JAN", "FEB", "MAC", "APR", "MEI", "JUN", "JUL", "OGO", "SEP", "O
 
 with st.spinner("Loading data dari Google Sheet..."):
     baucar = load_csv(BAUCAR_CSV_URL)
-    data_app = load_csv(DATA_APP_CSV_URL)
+    aplikasi = load_csv(APPLIKASI_CSV_URL)
     id_lookup = load_id_lookup(ID_LOOKUP_FILE)
 
 baucar = baucar.rename(columns={
@@ -260,13 +260,17 @@ baucar = baucar.rename(columns={
     "ID": "ID"
 })
 
-data_app = data_app.rename(columns={
+aplikasi = aplikasi.rename(columns={
+    "TIMESTAMP": "DATE",
     "DATE": "DATE",
+    "IN / OUT": "IN_OUT",
     "IN/OUT": "IN_OUT",
+    "IN OUT": "IN_OUT",
+    "BULAN / TAHUN": "BULAN_TAHUN_APP",
     "BULAN /TAHUN": "BULAN_TAHUN_APP",
     "BULAN/TAHUN": "BULAN_TAHUN_APP",
-    "NO. BAUCAR": "NO_BAUCAR",
     "NO BAUCAR": "NO_BAUCAR",
+    "NO. BAUCAR": "NO_BAUCAR",
     "NO KOTAK": "NO_KOTAK",
     "KOTAK TAMBAHAN": "KOTAK_TAMBAHAN",
     "EMAIL": "EMAIL"
@@ -280,11 +284,11 @@ id_lookup = id_lookup.rename(columns={
 })
 
 required_baucar = ["BULAN_TAHUN", "NO_BAUCAR", "NAMA", "ID"]
-required_data_app = ["NO_BAUCAR", "IN_OUT"]
+required_aplikasi = ["NO_BAUCAR", "IN_OUT"]
 required_lookup = ["ID", "NAMA_ID"]
 
 missing_baucar = [c for c in required_baucar if c not in baucar.columns]
-missing_data_app = [c for c in required_data_app if c not in data_app.columns]
+missing_aplikasi = [c for c in required_aplikasi if c not in aplikasi.columns]
 missing_lookup = [c for c in required_lookup if c not in id_lookup.columns]
 
 if missing_baucar:
@@ -292,9 +296,9 @@ if missing_baucar:
     st.write("Column BAUCAR yang dibaca:", list(baucar.columns))
     st.stop()
 
-if missing_data_app:
-    st.error(f"Column tidak dijumpai dalam sheet DATA APP: {missing_data_app}")
-    st.write("Column DATA APP yang dibaca:", list(data_app.columns))
+if missing_aplikasi:
+    st.error(f"Column tidak dijumpai dalam sheet APPLIKASI: {missing_aplikasi}")
+    st.write("Column APPLIKASI yang dibaca:", list(aplikasi.columns))
     st.stop()
 
 if missing_lookup:
@@ -308,17 +312,33 @@ baucar["ID"] = clean_text(baucar["ID"])
 baucar["TAHUN"] = baucar["BULAN_TAHUN"].fillna("").astype(str).str.extract(r"(\d{4})")
 baucar["BULAN"] = standardize_bulan(baucar["BULAN_TAHUN"])
 
-# DATA APP
-data_app["NO_BAUCAR_CLEAN"] = clean_no_baucar(data_app["NO_BAUCAR"])
-data_app = data_app[data_app["NO_BAUCAR_CLEAN"] != ""].copy()
-data_app["IN_OUT"] = normalize_status(data_app["IN_OUT"])
-data_app.loc[~data_app["IN_OUT"].isin(["IN", "OUT"]), "IN_OUT"] = ""
+# APPLIKASI
+# Sheet APPLIKASI ialah source sebenar.
+# Column NO_BAUCAR mengandungi banyak baucar dalam satu cell dipisahkan dengan koma.
+# Jadi Python akan pecahkan kepada 1 row = 1 baucar.
 
-# Jangan sort DATA APP secara global.
-# Status terkini ikut row terakhir dalam Google Sheet DATA APP.
-# DATE hanya ditukar untuk paparan sahaja.
-if "DATE" in data_app.columns:
-    data_app["DATE"] = pd.to_datetime(data_app["DATE"], errors="coerce", dayfirst=True)
+aplikasi["NO_BAUCAR_RAW"] = aplikasi["NO_BAUCAR"].fillna("").astype(str)
+
+aplikasi["NO_BAUCAR_LIST"] = (
+    aplikasi["NO_BAUCAR_RAW"]
+    .str.split(",")
+)
+
+aplikasi = aplikasi.explode("NO_BAUCAR_LIST").copy()
+
+aplikasi["NO_BAUCAR"] = aplikasi["NO_BAUCAR_LIST"]
+aplikasi["NO_BAUCAR_CLEAN"] = clean_no_baucar(aplikasi["NO_BAUCAR"])
+
+aplikasi = aplikasi[
+    (aplikasi["NO_BAUCAR_CLEAN"] != "")
+    & (aplikasi["NO_BAUCAR_CLEAN"] != "LOADING")
+].copy()
+
+aplikasi["IN_OUT"] = normalize_status(aplikasi["IN_OUT"])
+aplikasi.loc[~aplikasi["IN_OUT"].isin(["IN", "OUT"]), "IN_OUT"] = ""
+
+if "DATE" in aplikasi.columns:
+    aplikasi["DATE"] = pd.to_datetime(aplikasi["DATE"], errors="coerce", dayfirst=True)
 
 # Lookup ID
 id_lookup["ID"] = clean_text(id_lookup["ID"])
@@ -328,30 +348,30 @@ id_lookup = id_lookup.drop_duplicates(subset=["ID"], keep="first")
 # ======================================================================
 # STATUS LOGIC - FINAL LOCKED
 #
-# IN  = NO BAUCAR ada dalam DATA APP dan status terkini IN
-# OUT = NO BAUCAR ada dalam DATA APP dan status terkini OUT
-# BELUM DIKEMASKINI = NO BAUCAR ada dalam BAUCAR tetapi tiada dalam DATA APP
+# IN  = NO BAUCAR ada dalam APPLIKASI dan status terkini IN
+# OUT = NO BAUCAR ada dalam APPLIKASI dan status terkini OUT
+# BELUM DIKEMASKINI = NO BAUCAR ada dalam BAUCAR tetapi tiada dalam APPLIKASI
 #
 # JANGAN TUKAR LOGIC INI
 # ======================================================================
 
-# Row asal Google Sheet DATA APP digunakan untuk tentukan status terkini.
+# Row asal APPLIKASI digunakan untuk tentukan status terkini.
 # Rekod paling bawah bagi NO BAUCAR yang sama = status terkini.
-data_app["_ROW_ORDER"] = range(len(data_app))
+aplikasi["_ROW_ORDER"] = range(len(aplikasi))
 
-# Semua NO BAUCAR yang wujud dalam DATA APP
-app_set = set(data_app["NO_BAUCAR_CLEAN"])
+# Semua NO BAUCAR yang wujud dalam APPLIKASI
+app_set = set(aplikasi["NO_BAUCAR_CLEAN"])
 
 # Hanya row yang statusnya sah IN / OUT digunakan untuk status terkini
-valid_status_app = data_app[data_app["IN_OUT"].isin(["IN", "OUT"])].copy()
+valid_status_app = aplikasi[aplikasi["IN_OUT"].isin(["IN", "OUT"])].copy()
 
 latest_status = valid_status_app.sort_values("_ROW_ORDER").drop_duplicates(
     subset=["NO_BAUCAR_CLEAN"],
     keep="last"
 ).copy()
 
-# Detail terkini untuk DATE / KOTAK / EMAIL ikut row terakhir DATA APP
-latest_app = data_app.sort_values("_ROW_ORDER").drop_duplicates(
+# Detail terkini untuk DATE / KOTAK / EMAIL ikut row terakhir APPLIKASI
+latest_app = aplikasi.sort_values("_ROW_ORDER").drop_duplicates(
     subset=["NO_BAUCAR_CLEAN"],
     keep="last"
 ).copy()
@@ -369,20 +389,24 @@ latest_cols = [
 ]
 
 df = baucar.merge(latest_app[latest_cols], on="NO_BAUCAR_CLEAN", how="left")
-df = df.merge(
-    latest_status[["NO_BAUCAR_CLEAN", "IN_OUT"]],
-    on="NO_BAUCAR_CLEAN",
-    how="left"
-)
+
+if not latest_status.empty:
+    df = df.merge(
+        latest_status[["NO_BAUCAR_CLEAN", "IN_OUT"]],
+        on="NO_BAUCAR_CLEAN",
+        how="left"
+    )
+else:
+    df["IN_OUT"] = ""
+
 df = df.merge(id_lookup[["ID", "NAMA_ID"]], on="ID", how="left")
 
-df["ADA_DATA_APP"] = df["NO_BAUCAR_CLEAN"].isin(app_set)
+df["ADA_APLIKASI"] = df["NO_BAUCAR_CLEAN"].isin(app_set)
 
 df["STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
-df.loc[df["ADA_DATA_APP"] & (df["IN_OUT"] == "IN"), "STATUS_KEMASKINI"] = "IN"
-df.loc[df["ADA_DATA_APP"] & (df["IN_OUT"] == "OUT"), "STATUS_KEMASKINI"] = "OUT"
+df.loc[df["ADA_APLIKASI"] & (df["IN_OUT"] == "IN"), "STATUS_KEMASKINI"] = "IN"
+df.loc[df["ADA_APLIKASI"] & (df["IN_OUT"] == "OUT"), "STATUS_KEMASKINI"] = "OUT"
 
-# Telah dikemaskini hanya IN / OUT yang sah.
 df["TELAH_DIKEMASKINI"] = df["STATUS_KEMASKINI"].isin(["IN", "OUT"])
 
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
