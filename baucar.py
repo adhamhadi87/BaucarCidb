@@ -314,9 +314,11 @@ data_app = data_app[data_app["NO_BAUCAR_CLEAN"] != ""].copy()
 data_app["IN_OUT"] = normalize_status(data_app["IN_OUT"])
 data_app.loc[~data_app["IN_OUT"].isin(["IN", "OUT"]), "IN_OUT"] = ""
 
+# Jangan sort DATA APP secara global.
+# Status terkini ikut row terakhir dalam Google Sheet DATA APP.
+# DATE hanya ditukar untuk paparan sahaja.
 if "DATE" in data_app.columns:
     data_app["DATE"] = pd.to_datetime(data_app["DATE"], errors="coerce", dayfirst=True)
-    data_app = data_app.sort_values("DATE")
 
 # Lookup ID
 id_lookup["ID"] = clean_text(id_lookup["ID"])
@@ -333,30 +335,17 @@ id_lookup = id_lookup.drop_duplicates(subset=["ID"], keep="first")
 # JANGAN TUKAR LOGIC INI
 # ======================================================================
 
-# Simpan row asal untuk tentukan rekod terakhir jika DATE kosong / sama
+# Row asal Google Sheet DATA APP digunakan untuk tentukan status terkini.
+# Rekod paling bawah bagi NO BAUCAR yang sama = status terkini.
 data_app["_ROW_ORDER"] = range(len(data_app))
 
-# Set semua baucar yang wujud dalam DATA APP
+# Semua NO BAUCAR yang wujud dalam DATA APP
 app_set = set(data_app["NO_BAUCAR_CLEAN"])
 
-# Guna row DATA APP yang statusnya sah sahaja untuk tentukan IN / OUT terkini
+# Hanya row yang statusnya sah IN / OUT digunakan untuk status terkini
 valid_status_app = data_app[data_app["IN_OUT"].isin(["IN", "OUT"])].copy()
 
-if "DATE" in valid_status_app.columns:
-    valid_status_app["_DATE_SORT"] = pd.to_datetime(
-        valid_status_app["DATE"],
-        errors="coerce",
-        dayfirst=True
-    )
-    valid_status_app = valid_status_app.sort_values(
-        by=["_DATE_SORT", "_ROW_ORDER"],
-        ascending=[True, True],
-        na_position="first"
-    )
-else:
-    valid_status_app = valid_status_app.sort_values("_ROW_ORDER")
-
-latest_status = valid_status_app.drop_duplicates(
+latest_status = valid_status_app.sort_values("_ROW_ORDER").drop_duplicates(
     subset=["NO_BAUCAR_CLEAN"],
     keep="last"
 ).copy()
@@ -392,6 +381,9 @@ df["ADA_DATA_APP"] = df["NO_BAUCAR_CLEAN"].isin(app_set)
 df["STATUS_KEMASKINI"] = "BELUM DIKEMASKINI"
 df.loc[df["ADA_DATA_APP"] & (df["IN_OUT"] == "IN"), "STATUS_KEMASKINI"] = "IN"
 df.loc[df["ADA_DATA_APP"] & (df["IN_OUT"] == "OUT"), "STATUS_KEMASKINI"] = "OUT"
+
+# Telah dikemaskini hanya IN / OUT yang sah.
+df["TELAH_DIKEMASKINI"] = df["STATUS_KEMASKINI"].isin(["IN", "OUT"])
 
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
 df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
@@ -571,11 +563,11 @@ with tab1:
     st.dataframe(df_filter[papar_cols], use_container_width=True, hide_index=True)
 
 with tab2:
-    telah = df_filter[df_filter["ADA_DATA_APP"]]
+    telah = df_filter[df_filter["TELAH_DIKEMASKINI"]]
     st.dataframe(telah[papar_cols], use_container_width=True, hide_index=True)
 
 with tab3:
-    belum = df_filter[~df_filter["ADA_DATA_APP"]]
+    belum = df_filter[df_filter["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]
     st.dataframe(belum[papar_cols], use_container_width=True, hide_index=True)
 
 
