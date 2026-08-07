@@ -612,24 +612,33 @@ def multi_search_dataframe(dataframe, search_text, columns):
 
     search_cols = [c for c in columns if c in dataframe.columns]
 
-    combined_text = (
-        dataframe[search_cols]
-        .fillna("")
-        .astype(str)
-        .agg(" | ".join, axis=1)
-        .str.upper()
-    )
+    if not search_cols:
+        return dataframe.copy()
 
-    mask = pd.Series(False, index=dataframe.index)
+    # Mask keseluruhan: mana-mana keyword jumpa pada mana-mana column = papar row.
+    # Kaedah ini sengaja tidak menggunakan DataFrame.agg(" | ".join, axis=1)
+    # supaya stabil untuk Timestamp, NaN, nombor dan pandas versi baharu.
+    mask = pd.Series(False, index=dataframe.index, dtype=bool)
 
     for term in terms:
-        mask = mask | combined_text.str.contains(
-            str(term).upper(),
-            regex=False,
-            na=False
-        )
+        term_upper = str(term).strip().upper()
 
-    return dataframe[mask].copy()
+        if not term_upper:
+            continue
+
+        term_mask = pd.Series(False, index=dataframe.index, dtype=bool)
+
+        for col in search_cols:
+            col_text = dataframe[col].fillna("").astype(str).str.upper()
+            term_mask = term_mask | col_text.str.contains(
+                term_upper,
+                regex=False,
+                na=False
+            )
+
+        mask = mask | term_mask
+
+    return dataframe.loc[mask].copy()
 
 
 with tab1:
