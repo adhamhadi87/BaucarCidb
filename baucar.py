@@ -583,16 +583,109 @@ papar_cols = [
 ]
 papar_cols = [col for col in papar_cols if col in df_filter.columns]
 
+def multi_search_dataframe(dataframe, search_text, columns):
+    """
+    Multi carian dalam jadual.
+    Pengguna boleh masukkan banyak kata kunci / No Baucar sekaligus
+    dengan pemisah koma, titik koma atau baris baharu.
+
+    Contoh:
+    60000001, 60000002
+    atau paste satu senarai secara menegak.
+
+    Logic carian = OR:
+    mana-mana kata kunci yang ditemui pada mana-mana column dipaparkan akan dikekalkan.
+    """
+    if not search_text or not str(search_text).strip():
+        return dataframe.copy()
+
+    import re
+
+    terms = [
+        x.strip()
+        for x in re.split(r"[,;\n\r]+", str(search_text))
+        if x.strip()
+    ]
+
+    if not terms:
+        return dataframe.copy()
+
+    search_cols = [c for c in columns if c in dataframe.columns]
+
+    combined_text = (
+        dataframe[search_cols]
+        .fillna("")
+        .astype(str)
+        .agg(" | ".join, axis=1)
+        .str.upper()
+    )
+
+    mask = pd.Series(False, index=dataframe.index)
+
+    for term in terms:
+        mask = mask | combined_text.str.contains(
+            str(term).upper(),
+            regex=False,
+            na=False
+        )
+
+    return dataframe[mask].copy()
+
+
 with tab1:
-    st.dataframe(df_filter[papar_cols], use_container_width=True, hide_index=True)
+    search_semua = st.text_area(
+        "🔎 Carian Multi - Semua Baucar",
+        key="search_semua_baucar",
+        placeholder="Contoh: 60000001, 60000002\nAtau paste satu senarai No Baucar / Nama / ID / Kotak / Email",
+        height=85
+    )
+
+    semua_papar = multi_search_dataframe(
+        df_filter,
+        search_semua,
+        papar_cols
+    )
+
+    st.caption(f"Paparan: {len(semua_papar):,} daripada {len(df_filter):,} rekod")
+    st.dataframe(semua_papar[papar_cols], use_container_width=True, hide_index=True)
 
 with tab2:
-    telah = df_filter[df_filter["TELAH_DIKEMASKINI"]]
-    st.dataframe(telah[papar_cols], use_container_width=True, hide_index=True)
+    telah = df_filter[df_filter["TELAH_DIKEMASKINI"]].copy()
+
+    search_telah = st.text_area(
+        "🔎 Carian Multi - Telah Dikemaskini",
+        key="search_telah_dikemaskini",
+        placeholder="Contoh: 60000001, 60000002\nAtau paste satu senarai No Baucar / Nama / ID / Kotak / Email",
+        height=85
+    )
+
+    telah_papar = multi_search_dataframe(
+        telah,
+        search_telah,
+        papar_cols
+    )
+
+    st.caption(f"Paparan: {len(telah_papar):,} daripada {len(telah):,} rekod")
+    st.dataframe(telah_papar[papar_cols], use_container_width=True, hide_index=True)
 
 with tab3:
-    belum = df_filter[df_filter["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"]
-    st.dataframe(belum[papar_cols], use_container_width=True, hide_index=True)
+    belum = df_filter[df_filter["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"].copy()
+
+    search_belum = st.text_area(
+        "🔎 Carian Multi - Belum Dikemaskini",
+        key="search_belum_dikemaskini",
+        placeholder="Contoh: 60000001, 60000002\nAtau paste satu senarai No Baucar / Nama / ID",
+        height=85
+    )
+
+    belum_papar = multi_search_dataframe(
+        belum,
+        search_belum,
+        papar_cols
+    )
+
+    st.caption(f"Paparan: {len(belum_papar):,} daripada {len(belum):,} rekod")
+    st.dataframe(belum_papar[papar_cols], use_container_width=True, hide_index=True)
 
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
