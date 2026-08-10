@@ -11,6 +11,8 @@ APPLIKASI_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjL
 EMEL_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1298317374&single=true&output=csv"
 
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+
+SCRIPT_VERSION = "BKA-BREVO-2026-08-10-V3-UNDERSCORE"
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
 BREVO_FROM_EMAIL = os.getenv("BREVO_FROM_EMAIL", "").strip()
 BREVO_FROM_NAME = os.getenv("BREVO_FROM_NAME", "E-Filing BKA").strip()
@@ -84,74 +86,112 @@ def normalize_status(series):
 
 def extract_month_year(value):
     """
-    Return (year, month) from BULAN_TAHUN.
+    Parse BULAN_TAHUN kepada (tahun, bulan).
 
-    Supports examples such as:
-    JAN 2026, JAN/2026, 01/2026, 2026-01,
-    01-08-2026, 1 AUG 2026, and other pandas-readable dates.
+    Format sebenar BAUCAR:
+        Jan_2024
+        Feb_2024
+        Mar_2024
+        ...
+        Aug_2026
+
+    Juga support separator space, dash dan slash.
     """
+
     if pd.isna(value):
         return None, None
 
     raw = str(value).strip()
+
     if not raw:
         return None, None
 
-    # Normalize separators used in Google Sheet.
-    # Contoh sebenar data: Jan_2024, Feb_2024, Mar_2024.
-    normalized = (
-        raw
-        .replace("_", " ")
-        .replace(".", " ")
-        .strip()
-    )
-
-    s = normalized.upper()
+    s = raw.upper().strip()
 
     month_map = {
-        "JAN":1, "JANUARI":1, "JANUARY":1,
-        "FEB":2, "FEBRUARI":2, "FEBRUARY":2,
-        "MAC":3, "MAR":3, "MARCH":3,
-        "APR":4, "APRIL":4,
-        "MEI":5, "MAY":5,
-        "JUN":6, "JUNE":6,
-        "JUL":7, "JULY":7,
-        "OGO":8, "OGOS":8, "AUG":8, "AUGUST":8,
-        "SEP":9, "SEPT":9, "SEPTEMBER":9,
-        "OKT":10, "OCT":10, "OCTOBER":10,
-        "NOV":11, "NOVEMBER":11,
-        "DIS":12, "DEC":12, "DECEMBER":12,
+        "JAN": 1,
+        "FEB": 2,
+        "MAR": 3,
+        "MAC": 3,
+        "APR": 4,
+        "MAY": 5,
+        "MEI": 5,
+        "JUN": 6,
+        "JUL": 7,
+        "AUG": 8,
+        "OGO": 8,
+        "OGOS": 8,
+        "SEP": 9,
+        "SEPT": 9,
+        "OCT": 10,
+        "OKT": 10,
+        "NOV": 11,
+        "DEC": 12,
+        "DIS": 12,
     }
 
-    year_match = re.search(r"(20\d{2})", s)
-    year = int(year_match.group(1)) if year_match else None
+    # PRIORITY 1:
+    # Format sebenar: Jan_2024 / Jan-2024 / Jan 2024 / Jan/2024
+    m = re.match(
+        r"^([A-Z]+)[_\s\-/]+(20\d{2})$",
+        s
+    )
 
-    for token, month_num in month_map.items():
-        if re.search(rf"\b{re.escape(token)}\b", s):
-            return year, month_num
+    if m:
+        month_token = m.group(1)
+        year = int(m.group(2))
+        month = month_map.get(month_token)
 
-    m = re.search(r"(?<!\d)(0?[1-9]|1[0-2])\s*[/-]\s*(20\d{2})(?!\d)", s)
+        if month is not None:
+            return year, month
+
+    # PRIORITY 2:
+    # MM_YYYY / MM-YYYY / MM/YYYY
+    m = re.match(
+        r"^(0?[1-9]|1[0-2])[_\s\-/]+(20\d{2})$",
+        s
+    )
+
     if m:
         return int(m.group(2)), int(m.group(1))
 
-    m = re.search(r"(?<!\d)(20\d{2})\s*[/-]\s*(0?[1-9]|1[0-2])(?!\d)", s)
+    # PRIORITY 3:
+    # YYYY_MM / YYYY-MM / YYYY/MM
+    m = re.match(
+        r"^(20\d{2})[_\s\-/]+(0?[1-9]|1[0-2])$",
+        s
+    )
+
     if m:
         return int(m.group(1)), int(m.group(2))
 
-    m = re.search(
-        r"(?<!\d)(0?[1-9]|[12]\d|3[01])\s*[/-]\s*"
-        r"(0?[1-9]|1[0-2])\s*[/-]\s*(20\d{2})(?!\d)",
-        s
-    )
-    if m:
-        return int(m.group(3)), int(m.group(2))
+    # PRIORITY 4:
+    # Find month token + year anywhere in string
+    year_match = re.search(r"(20\d{2})", s)
+    if year_match:
+        year = int(year_match.group(1))
 
-    dt = pd.to_datetime(raw, errors="coerce", dayfirst=True)
-    if not pd.isna(dt):
-        return int(dt.year), int(dt.month)
+        for token, month in month_map.items():
+            if token in s:
+                return year, month
+
+    # Last fallback
+    normalized = re.sub(r"[_]+", " ", raw)
+
+    try:
+        dt = pd.to_datetime(
+            normalized,
+            errors="coerce",
+            dayfirst=True
+        )
+
+        if not pd.isna(dt):
+            return int(dt.year), int(dt.month)
+
+    except Exception:
+        pass
 
     return None, None
-
 
 def calculate_age_months(value, reference_date=None):
     if reference_date is None:
@@ -376,7 +416,18 @@ def send_brevo_email(to_email, to_name, subject, html_body, cc_email=""):
 def main():
     validate_config()
     print("E-FILING BKA - BREVO EMAIL REMINDER")
+    print(f"SCRIPT_VERSION={SCRIPT_VERSION}")
     print(f"TEST_MODE={TEST_MODE}")
+    print("========== SELF TEST PARSER ==========")
+    for test_value in ["Jan_2024", "Aug_2025", "Jul_2026"]:
+        test_year, test_month = extract_month_year(test_value)
+        test_age = calculate_age_months(test_value)
+        print(
+            f"{test_value} -> year={test_year}, month={test_month}, age={test_age}"
+        )
+    print("======================================")
+    print("")
+
     df = build_master_data()
 
     print_aging_debug(df)
