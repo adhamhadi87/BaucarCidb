@@ -305,8 +305,8 @@ def kira_umur_bulan_dari_bulan_tahun(bulan_series, tahun_series, tarikh_rujukan=
 def kategori_aging(umur_bulan):
     """
     Kategori aging ringkas.
-    Baucar bawah 3 bulan tidak dimasukkan dalam reminder aging.
-    Semua baucar 12 bulan dan ke atas digabung sebagai >1 TAHUN.
+    Semua baucar BELUM DIKEMASKINI dimasukkan dalam Aging,
+    termasuk baucar berumur 0-3 bulan.
     """
     if pd.isna(umur_bulan):
         return "TARIKH TIDAK SAH"
@@ -314,7 +314,7 @@ def kategori_aging(umur_bulan):
     umur_bulan = int(umur_bulan)
 
     if umur_bulan < 3:
-        return "< 3 BULAN"
+        return "0-3 BULAN"
     if umur_bulan < 6:
         return "3-6 BULAN"
     if umur_bulan < 9:
@@ -324,13 +324,12 @@ def kategori_aging(umur_bulan):
 
     return ">1 TAHUN"
 
-
 def aging_sort_key(label):
     """
     Susun kategori aging dengan betul.
     """
     sort_map = {
-        "< 3 BULAN": 0,
+        "0-3 BULAN": 0,
         "3-6 BULAN": 3,
         "6-9 BULAN": 6,
         "9-12 BULAN": 9,
@@ -872,7 +871,7 @@ with tab4:
     st.markdown("### ⏳ Aging Baucar Belum Dikemaskini")
     st.caption(
         "Aging dikira terus daripada BULAN_TAHUN dalam sheet BAUCAR. "
-        "Kategori: 3-6 bulan, 6-9 bulan, 9-12 bulan dan >1 tahun. "
+        "Kategori: 0-3 bulan, 3-6 bulan, 6-9 bulan, 9-12 bulan dan >1 tahun. "
         "Tab ini tidak dipengaruhi filter Tahun/Bulan di sidebar."
     )
 
@@ -882,7 +881,6 @@ with tab4:
     aging_base = df[
         (df["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI")
         & (df["UMUR_BULAN"].notna())
-        & (df["UMUR_BULAN"] >= 3)
     ].copy()
 
     # Carian multi khas aging
@@ -910,6 +908,7 @@ with tab4:
 
     # Filter kategori aging
     fixed_aging_categories = [
+        "0-3 BULAN",
         "3-6 BULAN",
         "6-9 BULAN",
         "9-12 BULAN",
@@ -966,7 +965,7 @@ with tab4:
     )
 
     ak1, ak2, ak3, ak4 = st.columns(4)
-    ak1.metric("Baucar Aging ≥ 3 Bulan", f"{jumlah_baucar_aging:,}")
+    ak1.metric("Jumlah Baucar Belum Dikemaskini", f"{jumlah_baucar_aging:,}")
     ak2.metric("> 1 Tahun", f"{jumlah_lebih_1_tahun:,}")
     ak3.metric("Pemilik / ID", f"{jumlah_pemilik_aging:,}")
     ak4.metric("Pemilik Ada Email", f"{jumlah_email_aging:,}")
@@ -1049,6 +1048,7 @@ with tab4:
         # Pastikan kolum aging sentiasa kekal dan tersusun,
         # termasuk >1 TAHUN walaupun sesetengah pemilik tiada rekod dalam kategori tersebut.
         fixed_aging_cols = [
+            "0-3 BULAN",
             "3-6 BULAN",
             "6-9 BULAN",
             "9-12 BULAN",
