@@ -97,7 +97,16 @@ def extract_month_year(value):
     if not raw:
         return None, None
 
-    s = raw.upper()
+    # Normalize separators used in Google Sheet.
+    # Contoh sebenar data: Jan_2024, Feb_2024, Mar_2024.
+    normalized = (
+        raw
+        .replace("_", " ")
+        .replace(".", " ")
+        .strip()
+    )
+
+    s = normalized.upper()
 
     month_map = {
         "JAN":1, "JANUARI":1, "JANUARY":1,
