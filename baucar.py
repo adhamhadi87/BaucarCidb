@@ -293,8 +293,9 @@ def kira_umur_bulan(tarikh_series, tarikh_rujukan=None):
 
 def kategori_aging(umur_bulan):
     """
-    Kategori aging secara sela 3 bulan.
+    Kategori aging ringkas.
     Baucar bawah 3 bulan tidak dimasukkan dalam reminder aging.
+    Semua baucar 12 bulan dan ke atas digabung sebagai >1 TAHUN.
     """
     if pd.isna(umur_bulan):
         return "TARIKH TIDAK SAH"
@@ -310,30 +311,22 @@ def kategori_aging(umur_bulan):
     if umur_bulan < 12:
         return "9-12 BULAN"
 
-    bawah = (umur_bulan // 3) * 3
-    atas = bawah + 3
-
-    # Jika tepat gandaan 3, kekalkan sebagai julat bermula pada nilai tersebut.
-    if umur_bulan % 3 == 0:
-        return f"{bawah}-{atas} BULAN"
-
-    return f"{bawah}-{atas} BULAN"
+    return ">1 TAHUN"
 
 
 def aging_sort_key(label):
     """
     Susun kategori aging dengan betul.
     """
-    if label == "< 3 BULAN":
-        return 0
-    if label == "TARIKH TIDAK SAH":
-        return 9999
-
-    match = re.search(r"(\d+)-(\d+)", str(label))
-    if match:
-        return int(match.group(1))
-
-    return 9998
+    sort_map = {
+        "< 3 BULAN": 0,
+        "3-6 BULAN": 3,
+        "6-9 BULAN": 6,
+        "9-12 BULAN": 9,
+        ">1 TAHUN": 12,
+        "TARIKH TIDAK SAH": 9999
+    }
+    return sort_map.get(str(label), 9998)
 
 
 bulan_order = ["JAN", "FEB", "MAC", "APR", "MEI", "JUN", "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"]
@@ -862,7 +855,7 @@ with tab4:
     st.markdown("### ⏳ Aging Baucar Belum Dikemaskini")
     st.caption(
         "Aging dikira terus daripada BULAN_TAHUN dalam sheet BAUCAR. "
-        "Hanya baucar BELUM DIKEMASKINI yang berumur 3 bulan dan ke atas dimasukkan."
+        "Kategori: 3-6 bulan, 6-9 bulan, 9-12 bulan dan >1 tahun."
     )
 
     aging_base = df_filter[
