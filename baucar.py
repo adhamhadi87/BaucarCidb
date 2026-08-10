@@ -233,9 +233,22 @@ def normalize_status(series):
 
 
 def standardize_bulan(series):
+    """
+    Standardize BULAN_TAHUN kepada kod bulan:
+    JAN, FEB, MAC, APR, MEI, JUN, JUL, OGO, SEP, OKT, NOV, DIS.
+
+    Sokong format seperti:
+    - JUN 2026
+    - JUN/2026
+    - JUN-2026
+    - 06/2026
+    - 6/2026
+    - 2026-06
+    - tarikh penuh yang boleh dibaca pandas
+    """
     bulan_map = {
-        "JAN": "JAN", "JANUARI": "JAN",
-        "FEB": "FEB", "FEBRUARI": "FEB",
+        "JAN": "JAN", "JANUARI": "JAN", "JANUARY": "JAN",
+        "FEB": "FEB", "FEBRUARI": "FEB", "FEBRUARY": "FEB",
         "MAC": "MAC", "MAR": "MAC", "MARCH": "MAC",
         "APR": "APR", "APRIL": "APR",
         "MEI": "MEI", "MAY": "MEI",
@@ -247,10 +260,77 @@ def standardize_bulan(series):
         "NOV": "NOV", "NOVEMBER": "NOV",
         "DIS": "DIS", "DEC": "DIS", "DECEMBER": "DIS"
     }
-    extracted = series.fillna("").astype(str).str.extract(r"([A-Za-zÀ-ÿ]+)")[0]
-    return extracted.fillna("").astype(str).str.upper().str.strip().map(bulan_map)
+
+    month_num_map = {
+        1: "JAN", 2: "FEB", 3: "MAC", 4: "APR",
+        5: "MEI", 6: "JUN", 7: "JUL", 8: "OGO",
+        9: "SEP", 10: "OKT", 11: "NOV", 12: "DIS"
+    }
+
+    def parse_one(value):
+        if pd.isna(value):
+            return None
+
+        s = str(value).strip()
+        if not s:
+            return None
+
+        upper = s.upper()
+
+        # 1) Cuba nama bulan dahulu.
+        for key, mapped in bulan_map.items():
+            if re.search(rf"\b{re.escape(key)}\b", upper):
+                return mapped
+
+        # 2) Format MM/YYYY, M/YYYY, MM-YYYY, M-YYYY
+        m = re.search(r"(?<!\d)(0?[1-9]|1[0-2])\s*[/-]\s*(20\d{2})(?!\d)", upper)
+        if m:
+            return month_num_map.get(int(m.group(1)))
+
+        # 3) Format YYYY-MM, YYYY/M
+        m = re.search(r"(?<!\d)(20\d{2})\s*[/-]\s*(0?[1-9]|1[0-2])(?!\d)", upper)
+        if m:
+            return month_num_map.get(int(m.group(2)))
+
+        # 4) Cuba pandas date parser sebagai fallback.
+        try:
+            dt = pd.to_datetime(s, errors="coerce", dayfirst=True)
+            if not pd.isna(dt):
+                return month_num_map.get(int(dt.month))
+        except Exception:
+            pass
+
+        return None
+
+    return series.apply(parse_one)
 
 
+def extract_tahun_bulan_tahun(series):
+    """
+    Extract tahun daripada BULAN_TAHUN secara robust.
+    """
+    def parse_year(value):
+        if pd.isna(value):
+            return None
+
+        s = str(value).strip()
+        if not s:
+            return None
+
+        m = re.search(r"(20\d{2})", s)
+        if m:
+            return m.group(1)
+
+        try:
+            dt = pd.to_datetime(s, errors="coerce", dayfirst=True)
+            if not pd.isna(dt):
+                return str(int(dt.year))
+        except Exception:
+            pass
+
+        return None
+
+    return series.apply(parse_year)
 
 def bulan_tahun_to_date(bulan_series, tahun_series):
     """
@@ -440,7 +520,7 @@ if missing_emel:
 # Master BAUCAR
 baucar["NO_BAUCAR_CLEAN"] = clean_no_baucar(baucar["NO_BAUCAR"])
 baucar["ID"] = clean_text(baucar["ID"])
-baucar["TAHUN"] = baucar["BULAN_TAHUN"].fillna("").astype(str).str.extract(r"(\d{4})")
+baucar["TAHUN"] = extract_tahun_bulan_tahun(baucar["BULAN_TAHUN"])
 baucar["BULAN"] = standardize_bulan(baucar["BULAN_TAHUN"])
 
 # APPLIKASI
@@ -878,17 +958,19 @@ with tab4:
     # Aging sengaja menggunakan keseluruhan master data (df), bukan df_filter.
     # Ini memastikan baucar lama 2024/2025 tidak hilang apabila filter Tahun/Bulan
     # pada dashboard utama sedang dipilih.
-    # Semua baucar BELUM DIKEMASKINI yang mempunyai BULAN/TAHUN sah.
-    aging_base = df[
-        (df["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI")
-        & (df["UMUR_BULAN"].notna())
+    # Semua baucar BELUM DIKEMASKINI.
+    belum_semua_aging = df[
+        df["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"
     ].copy()
 
-    # Semakan rekod BELUM DIKEMASKINI yang gagal dikira aging
-    # supaya tiada rekod tercicir tanpa disedari.
-    aging_invalid = df[
-        (df["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI")
-        & (df["UMUR_BULAN"].isna())
+    # Rekod yang berjaya dikira aging.
+    aging_base = belum_semua_aging[
+        belum_semua_aging["UMUR_BULAN"].notna()
+    ].copy()
+
+    # Rekod yang BULAN/TAHUN masih tidak dapat dibaca.
+    aging_invalid = belum_semua_aging[
+        belum_semua_aging["UMUR_BULAN"].isna()
     ].copy()
 
     # Carian multi khas aging
@@ -974,12 +1056,15 @@ with tab4:
 
     jumlah_aging_invalid = len(aging_invalid)
 
-    ak1, ak2, ak3, ak4, ak5 = st.columns(5)
-    ak1.metric("Jumlah Baucar Belum Dikemaskini", f"{jumlah_baucar_aging:,}")
-    ak2.metric("> 1 Tahun", f"{jumlah_lebih_1_tahun:,}")
-    ak3.metric("Pemilik / ID", f"{jumlah_pemilik_aging:,}")
-    ak4.metric("Pemilik Ada Email", f"{jumlah_email_aging:,}")
-    ak5.metric("Tarikh Aging Tidak Sah", f"{jumlah_aging_invalid:,}")
+    jumlah_belum_semua = len(belum_semua_aging)
+
+    ak1, ak2, ak3, ak4, ak5, ak6 = st.columns(6)
+    ak1.metric("Belum Dikemaskini", f"{jumlah_belum_semua:,}")
+    ak2.metric("Berjaya Dikira Aging", f"{jumlah_baucar_aging:,}")
+    ak3.metric("> 1 Tahun", f"{jumlah_lebih_1_tahun:,}")
+    ak4.metric("Pemilik / ID", f"{jumlah_pemilik_aging:,}")
+    ak5.metric("Pemilik Ada Email", f"{jumlah_email_aging:,}")
+    ak6.metric("Tarikh Aging Tidak Sah", f"{jumlah_aging_invalid:,}")
 
     # Ringkasan aging ikut kategori
     aging_summary = (
