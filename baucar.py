@@ -1094,6 +1094,27 @@ with tab4:
         st.plotly_chart(fig_aging, use_container_width=True)
 
     # Ringkasan per pemilik / ID
+    fixed_aging_cols = [
+        "0-3 BULAN",
+        "3-6 BULAN",
+        "6-9 BULAN",
+        "9-12 BULAN",
+        ">1 TAHUN"
+    ]
+
+    # Initialize supaya variable sentiasa wujud walaupun tiada data.
+    pivot_aging = pd.DataFrame(
+        columns=[
+            "ID",
+            "NAMA_PEMILIK",
+            "EMAIL_PEMILIK"
+        ] + fixed_aging_cols + ["JUMLAH"]
+    )
+
+    lebih_1_tahun_df = aging_filtered[
+        aging_filtered["UMUR_BULAN"] >= 12
+    ].copy()
+
     if not aging_filtered.empty:
         aging_filtered["NAMA_PEMILIK"] = (
             aging_filtered["NAMA_EMEL"]
@@ -1122,14 +1143,42 @@ with tab4:
             .str.strip()
         )
 
-        # Elak rekod tercicir daripada pivot apabila nama/email kosong.
-        aging_filtered["ID"] = aging_filtered["ID"].fillna("").astype(str).str.strip()
-        aging_filtered["NAMA_PEMILIK"] = aging_filtered["NAMA_PEMILIK"].fillna("").astype(str).str.strip()
-        aging_filtered["EMAIL_PEMILIK"] = aging_filtered["EMAIL_PEMILIK"].fillna("").astype(str).str.strip()
+        # Elak rekod tercicir apabila nama/email kosong.
+        aging_filtered["ID"] = (
+            aging_filtered["ID"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
 
-        aging_filtered.loc[aging_filtered["ID"] == "", "ID"] = "(Blank)"
-        aging_filtered.loc[aging_filtered["NAMA_PEMILIK"] == "", "NAMA_PEMILIK"] = "(Tiada Nama)"
-        aging_filtered.loc[aging_filtered["EMAIL_PEMILIK"] == "", "EMAIL_PEMILIK"] = "(Tiada Email)"
+        aging_filtered["NAMA_PEMILIK"] = (
+            aging_filtered["NAMA_PEMILIK"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+
+        aging_filtered["EMAIL_PEMILIK"] = (
+            aging_filtered["EMAIL_PEMILIK"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+
+        aging_filtered.loc[
+            aging_filtered["ID"] == "",
+            "ID"
+        ] = "(Blank)"
+
+        aging_filtered.loc[
+            aging_filtered["NAMA_PEMILIK"] == "",
+            "NAMA_PEMILIK"
+        ] = "(Tiada Nama)"
+
+        aging_filtered.loc[
+            aging_filtered["EMAIL_PEMILIK"] == "",
+            "EMAIL_PEMILIK"
+        ] = "(Tiada Email)"
 
         pivot_aging = pd.pivot_table(
             aging_filtered,
@@ -1141,36 +1190,34 @@ with tab4:
             dropna=False
         ).reset_index()
 
-        # Pastikan kolum aging sentiasa kekal dan tersusun,
-        # termasuk >1 TAHUN walaupun sesetengah pemilik tiada rekod dalam kategori tersebut.
-        fixed_aging_cols = [
-            "0-3 BULAN",
-            "3-6 BULAN",
-            "6-9 BULAN",
-            "9-12 BULAN",
-            ">1 TAHUN"
-        ]
-
+        # Pastikan semua kategori sentiasa ada.
         for col in fixed_aging_cols:
             if col not in pivot_aging.columns:
                 pivot_aging[col] = 0
 
-        pivot_aging["JUMLAH"] = pivot_aging[fixed_aging_cols].sum(axis=1)
+        pivot_aging["JUMLAH"] = (
+            pivot_aging[fixed_aging_cols]
+            .sum(axis=1)
+        )
 
         pivot_aging = pivot_aging[
-            ["ID", "NAMA_PEMILIK", "EMAIL_PEMILIK"]
+            [
+                "ID",
+                "NAMA_PEMILIK",
+                "EMAIL_PEMILIK"
+            ]
             + fixed_aging_cols
             + ["JUMLAH"]
-        ].sort_values("JUMLAH", ascending=False)
+        ].sort_values(
+            "JUMLAH",
+            ascending=False
+        )
 
-        # Semakan khusus baucar > 1 tahun
-    lebih_1_tahun_df = aging_filtered[
-        aging_filtered["UMUR_BULAN"] >= 12
-    ].copy()
-
+    # Semakan khusus baucar > 1 tahun
     st.markdown("#### Semakan Baucar > 1 Tahun")
 
     vt1, vt2 = st.columns(2)
+
     vt1.metric(
         "Jumlah Baucar > 1 Tahun",
         f"{len(lebih_1_tahun_df):,}"
@@ -1207,21 +1254,30 @@ with tab4:
             if c in lebih_1_tahun_df.columns
         ]
 
+        if lebih_1_tahun_df.empty:
+            st.info("Tiada baucar > 1 tahun untuk pilihan semasa.")
+        else:
+            st.dataframe(
+                lebih_1_tahun_df[
+                    lebih_1_tahun_cols
+                ].sort_values(
+                    ["UMUR_BULAN", "ID"],
+                    ascending=[False, True]
+                ),
+                use_container_width=True,
+                hide_index=True
+            )
+
+    st.markdown("#### Ringkasan Aging Mengikut Pemilik / ID")
+
+    if pivot_aging.empty:
+        st.info("Tiada rekod aging untuk pilihan semasa.")
+    else:
         st.dataframe(
-            lebih_1_tahun_df[lebih_1_tahun_cols].sort_values(
-                ["UMUR_BULAN", "ID"],
-                ascending=[False, True]
-            ),
+            pivot_aging,
             use_container_width=True,
             hide_index=True
         )
-
-    st.markdown("#### Ringkasan Aging Mengikut Pemilik / ID")
-    st.dataframe(
-        pivot_aging,
-        use_container_width=True,
-        hide_index=True
-    )
 
     if not aging_invalid.empty:
         with st.expander("⚠️ Lihat rekod yang BULAN/TAHUN tidak dapat dikira"):
