@@ -1,4 +1,5 @@
 import os
+import base64
 import re
 import sys
 import time
@@ -12,7 +13,7 @@ EMEL_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_0
 
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
-SCRIPT_VERSION = "BKA-BREVO-2026-08-10-V3-UNDERSCORE"
+SCRIPT_VERSION = "BKA-BREVO-2026-08-10-V4-TXT-ATTACHMENT"
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
 BREVO_FROM_EMAIL = os.getenv("BREVO_FROM_EMAIL", "").strip()
 BREVO_FROM_NAME = os.getenv("BREVO_FROM_NAME", "E-Filing BKA").strip()
@@ -355,63 +356,198 @@ def first_non_blank(series, fallback=""):
     vals = vals[vals != ""]
     return vals.iloc[0] if not vals.empty else fallback
 
+def build_txt_attachment(owner_name, owner_id, rows):
+    categories = ["3-6 BULAN", "6-9 BULAN", "9-12 BULAN", ">1 TAHUN"]
+    counts = {
+        category: int((rows["KATEGORI_AGING"] == category).sum())
+        for category in categories
+    }
+
+    lines = [
+        "E-FILING BKA",
+        "SENARAI BAUCAR BELUM DIKEMASKINI",
+        "=" * 90,
+        f"Nama : {owner_name}",
+        f"ID   : {owner_id}",
+        "",
+        "RINGKASAN AGING",
+        "-" * 90,
+        f"3-6 BULAN   : {counts['3-6 BULAN']:,}",
+        f"6-9 BULAN   : {counts['6-9 BULAN']:,}",
+        f"9-12 BULAN  : {counts['9-12 BULAN']:,}",
+        f">1 TAHUN    : {counts['>1 TAHUN']:,}",
+        f"JUMLAH      : {len(rows):,}",
+        "",
+        "SENARAI BAUCAR",
+        "-" * 120,
+        f"{'NO BAUCAR':<25}{'BULAN/TAHUN':<20}{'UMUR (BULAN)':<18}{'AGING':<20}",
+        "-" * 120,
+    ]
+
+    sorted_rows = rows.sort_values(
+        ["UMUR_BULAN", "NO_BAUCAR"],
+        ascending=[False, True]
+    )
+
+    for _, row in sorted_rows.iterrows():
+        no_baucar = "" if pd.isna(row.get("NO_BAUCAR")) else str(row.get("NO_BAUCAR"))
+        bulan_tahun = "" if pd.isna(row.get("BULAN_TAHUN")) else str(row.get("BULAN_TAHUN"))
+        age = row.get("UMUR_BULAN")
+        age_display = "" if pd.isna(age) else str(int(age))
+        aging = "" if pd.isna(row.get("KATEGORI_AGING")) else str(row.get("KATEGORI_AGING"))
+
+        lines.append(
+            f"{no_baucar:<25}{bulan_tahun:<20}{age_display:<18}{aging:<20}"
+        )
+
+    lines.extend([
+        "",
+        "-" * 120,
+        "Fail ini dijana secara automatik oleh sistem E-Filing BKA."
+    ])
+
+    return "\n".join(lines)
+
+
 def build_email_html(owner_name, owner_id, rows):
-    cats = ["3-6 BULAN","6-9 BULAN","9-12 BULAN",">1 TAHUN"]
-    counts = {c:int((rows["KATEGORI_AGING"] == c).sum()) for c in cats}
-    detail = []
-    for _, row in rows.sort_values(["UMUR_BULAN","NO_BAUCAR"], ascending=[False,True]).iterrows():
-        age = "" if pd.isna(row["UMUR_BULAN"]) else str(int(row["UMUR_BULAN"]))
-        detail.append(f"""
-        <tr>
-          <td style="padding:8px;border:1px solid #ddd;">{safe_html(row.get("NO_BAUCAR",""))}</td>
-          <td style="padding:8px;border:1px solid #ddd;">{safe_html(row.get("BULAN_TAHUN",""))}</td>
-          <td style="padding:8px;border:1px solid #ddd;text-align:center;">{safe_html(age)}</td>
-          <td style="padding:8px;border:1px solid #ddd;">{safe_html(row.get("KATEGORI_AGING",""))}</td>
-        </tr>""")
+    categories = ["3-6 BULAN", "6-9 BULAN", "9-12 BULAN", ">1 TAHUN"]
+    counts = {
+        category: int((rows["KATEGORI_AGING"] == category).sum())
+        for category in categories
+    }
+
     return f"""
-    <html><body style="font-family:Arial,sans-serif;color:#222;">
-    <h2>E-Filing BKA</h2>
-    <p>Tuan/Puan <b>{safe_html(owner_name)}</b>,</p>
-    <p>Berdasarkan rekod E-Filing BKA, terdapat <b>{len(rows):,} baucar</b> di bawah ID <b>{safe_html(owner_id)}</b> yang masih belum dikemaskini dan telah mencapai tempoh tiga (3) bulan atau lebih.</p>
+    <html>
+    <body style="font-family:Arial,sans-serif;color:#222;">
+        <h2>E-Filing BKA</h2>
 
-    <h3>Ringkasan Aging</h3>
-    <table style="border-collapse:collapse;width:520px;">
-      <tr><th style="padding:8px;border:1px solid #ddd;text-align:left;">Kategori</th><th style="padding:8px;border:1px solid #ddd;text-align:right;">Jumlah</th></tr>
-      <tr><td style="padding:8px;border:1px solid #ddd;">3-6 Bulan</td><td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts["3-6 BULAN"]:,}</td></tr>
-      <tr><td style="padding:8px;border:1px solid #ddd;">6-9 Bulan</td><td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts["6-9 BULAN"]:,}</td></tr>
-      <tr><td style="padding:8px;border:1px solid #ddd;">9-12 Bulan</td><td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts["9-12 BULAN"]:,}</td></tr>
-      <tr><td style="padding:8px;border:1px solid #ddd;">&gt; 1 Tahun</td><td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts[">1 TAHUN"]:,}</td></tr>
-      <tr><td style="padding:8px;border:1px solid #ddd;"><b>Jumlah</b></td><td style="padding:8px;border:1px solid #ddd;text-align:right;"><b>{len(rows):,}</b></td></tr>
-    </table>
+        <p>Tuan/Puan <b>{safe_html(owner_name)}</b>,</p>
 
-    <h3>Senarai Baucar</h3>
-    <table style="border-collapse:collapse;width:100%;">
-      <tr><th style="padding:8px;border:1px solid #ddd;">No. Baucar</th><th style="padding:8px;border:1px solid #ddd;">Bulan/Tahun</th><th style="padding:8px;border:1px solid #ddd;">Umur (Bulan)</th><th style="padding:8px;border:1px solid #ddd;">Aging</th></tr>
-      {''.join(detail)}
-    </table>
+        <p>
+            Berdasarkan rekod E-Filing BKA, terdapat
+            <b>{len(rows):,} baucar</b> di bawah ID
+            <b>{safe_html(owner_id)}</b> yang masih belum dikemaskini
+            dan telah mencapai tempoh tiga (3) bulan atau lebih.
+        </p>
 
-    <p>Mohon semakan dan tindakan kemaskini dibuat dalam E-Filing BKA.</p>
-    <p>Sekian, terima kasih.</p>
-    <p><b>Bahagian Kewangan & Akaun</b><br>CIDB Malaysia</p>
-    <hr>
-    <p style="font-size:11px;color:#777;">Email ini dijana secara automatik oleh sistem E-Filing BKA.</p>
-    </body></html>
+        <h3>Ringkasan Aging</h3>
+
+        <table style="border-collapse:collapse;width:520px;">
+            <tr>
+                <th style="padding:8px;border:1px solid #ddd;text-align:left;">Kategori</th>
+                <th style="padding:8px;border:1px solid #ddd;text-align:right;">Jumlah</th>
+            </tr>
+            <tr>
+                <td style="padding:8px;border:1px solid #ddd;">3-6 Bulan</td>
+                <td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts["3-6 BULAN"]:,}</td>
+            </tr>
+            <tr>
+                <td style="padding:8px;border:1px solid #ddd;">6-9 Bulan</td>
+                <td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts["6-9 BULAN"]:,}</td>
+            </tr>
+            <tr>
+                <td style="padding:8px;border:1px solid #ddd;">9-12 Bulan</td>
+                <td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts["9-12 BULAN"]:,}</td>
+            </tr>
+            <tr>
+                <td style="padding:8px;border:1px solid #ddd;">&gt; 1 Tahun</td>
+                <td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts[">1 TAHUN"]:,}</td>
+            </tr>
+            <tr>
+                <td style="padding:8px;border:1px solid #ddd;"><b>JUMLAH</b></td>
+                <td style="padding:8px;border:1px solid #ddd;text-align:right;"><b>{len(rows):,}</b></td>
+            </tr>
+        </table>
+
+        <p>
+            Senarai penuh baucar disertakan bersama email ini
+            dalam fail <b>.txt</b>.
+        </p>
+
+        <p>Mohon semakan dan tindakan kemaskini dibuat dalam E-Filing BKA.</p>
+
+        <p>Sekian, terima kasih.</p>
+
+        <p>
+            <b>Bahagian Kewangan &amp; Akaun</b><br>
+            CIDB Malaysia
+        </p>
+
+        <hr>
+
+        <p style="font-size:11px;color:#777;">
+            Email ini dijana secara automatik oleh sistem E-Filing BKA.
+        </p>
+    </body>
+    </html>
     """
 
-def send_brevo_email(to_email, to_name, subject, html_body, cc_email=""):
-    headers = {"accept":"application/json","content-type":"application/json","api-key":BREVO_API_KEY}
-    payload = {
-        "sender":{"name":BREVO_FROM_NAME,"email":BREVO_FROM_EMAIL},
-        "to":[{"email":to_email,"name":to_name}],
-        "subject":subject,
-        "htmlContent":html_body,
+
+def send_brevo_email(
+    to_email,
+    to_name,
+    subject,
+    html_body,
+    cc_email="",
+    attachment_name="",
+    attachment_text=""
+):
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "api-key": BREVO_API_KEY,
     }
+
+    payload = {
+        "sender": {
+            "name": BREVO_FROM_NAME,
+            "email": BREVO_FROM_EMAIL,
+        },
+        "to": [
+            {
+                "email": to_email,
+                "name": to_name,
+            }
+        ],
+        "subject": subject,
+        "htmlContent": html_body,
+    }
+
     if cc_email:
-        payload["cc"] = [{"email":cc_email,"name":"Group Kewangan"}]
-    response = requests.post(BREVO_API_URL, headers=headers, json=payload, timeout=60)
-    if response.status_code not in (200,201,202):
-        raise RuntimeError(f"Brevo API error {response.status_code}: {response.text}")
-    return response.json() if response.text else {}
+        payload["cc"] = [
+            {
+                "email": cc_email,
+                "name": "Group Kewangan",
+            }
+        ]
+
+    if attachment_name and attachment_text:
+        payload["attachment"] = [
+            {
+                "name": attachment_name,
+                "content": base64.b64encode(
+                    attachment_text.encode("utf-8-sig")
+                ).decode("ascii"),
+            }
+        ]
+
+    response = requests.post(
+        BREVO_API_URL,
+        headers=headers,
+        json=payload,
+        timeout=60,
+    )
+
+    if response.status_code not in (200, 201, 202):
+        raise RuntimeError(
+            f"Brevo API error {response.status_code}: {response.text}"
+        )
+
+    try:
+        return response.json()
+    except Exception:
+        return {}
+
 
 def main():
     validate_config()
@@ -463,6 +599,15 @@ def main():
         subject = f"Peringatan Mingguan E-Filing BKA - {len(rows):,} Baucar Belum Dikemaskini"
         html = build_email_html(owner_name, owner_id, rows)
 
+        txt_content = build_txt_attachment(owner_name, owner_id, rows)
+
+        safe_owner_id = re.sub(
+            r"[^A-Za-z0-9_-]+",
+            "_",
+            owner_id
+        )
+        attachment_name = f"Senarai_Baucar_ID_{safe_owner_id}.txt"
+
         if TEST_MODE:
             banner = f"""<div style="background:#fff3cd;border:1px solid #ffe69c;padding:12px;margin-bottom:15px;font-family:Arial;">
             <b>TEST MODE</b><br>
@@ -474,7 +619,15 @@ def main():
             html = banner + html
 
         try:
-            result = send_brevo_email(actual_to, actual_name, subject, html, actual_cc)
+            result = send_brevo_email(
+                actual_to,
+                actual_name,
+                subject,
+                html,
+                actual_cc,
+                attachment_name,
+                txt_content
+            )
             print(f"SENT | ID={owner_id} | TO={actual_to} | BAUCAR={len(rows):,} | MESSAGE_ID={result.get('messageId','')}")
             sent += 1
         except Exception as exc:
