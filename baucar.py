@@ -892,14 +892,21 @@ with tab4:
     )
 
     # Filter kategori aging
-    aging_categories = sorted(
-        aging_filtered["KATEGORI_AGING"]
-        .dropna()
-        .astype(str)
-        .unique()
-        .tolist(),
-        key=aging_sort_key
-    )
+    fixed_aging_categories = [
+        "3-6 BULAN",
+        "6-9 BULAN",
+        "9-12 BULAN",
+        ">1 TAHUN"
+    ]
+
+    aging_categories = [
+        c for c in fixed_aging_categories
+        if c in aging_filtered["KATEGORI_AGING"].dropna().astype(str).unique().tolist()
+    ]
+
+    # Kekalkan >1 TAHUN sebagai pilihan tetap jika ada rekod 12 bulan dan ke atas.
+    if (aging_filtered["UMUR_BULAN"] >= 12).any() and ">1 TAHUN" not in aging_categories:
+        aging_categories.append(">1 TAHUN")
 
     aging_category_filter = st.multiselect(
         "Kategori Aging",
@@ -1012,15 +1019,25 @@ with tab4:
             fill_value=0
         ).reset_index()
 
-        category_cols = [
-            c for c in pivot_aging.columns
-            if c not in ["ID", "NAMA_PEMILIK", "EMAIL_PEMILIK"]
+        # Pastikan kolum aging sentiasa kekal dan tersusun,
+        # termasuk >1 TAHUN walaupun sesetengah pemilik tiada rekod dalam kategori tersebut.
+        fixed_aging_cols = [
+            "3-6 BULAN",
+            "6-9 BULAN",
+            "9-12 BULAN",
+            ">1 TAHUN"
         ]
-        category_cols = sorted(category_cols, key=aging_sort_key)
 
-        pivot_aging["JUMLAH"] = pivot_aging[category_cols].sum(axis=1)
+        for col in fixed_aging_cols:
+            if col not in pivot_aging.columns:
+                pivot_aging[col] = 0
+
+        pivot_aging["JUMLAH"] = pivot_aging[fixed_aging_cols].sum(axis=1)
+
         pivot_aging = pivot_aging[
-            ["ID", "NAMA_PEMILIK", "EMAIL_PEMILIK"] + category_cols + ["JUMLAH"]
+            ["ID", "NAMA_PEMILIK", "EMAIL_PEMILIK"]
+            + fixed_aging_cols
+            + ["JUMLAH"]
         ].sort_values("JUMLAH", ascending=False)
 
         st.markdown("#### Ringkasan Aging Mengikut Pemilik / ID")
