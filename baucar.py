@@ -241,7 +241,7 @@ def standardize_bulan(series):
         "MEI": "MEI", "MAY": "MEI",
         "JUN": "JUN", "JUNE": "JUN",
         "JUL": "JUL", "JULY": "JUL",
-        "OGO": "OGO", "OGOS": "OGO", "AUG": "OGO", "AUGUST": "AUG",
+        "OGO": "OGO", "OGOS": "OGO", "AUG": "OGO", "AUGUST": "OGO",
         "SEP": "SEP", "SEPT": "SEP", "SEPTEMBER": "SEP",
         "OKT": "OKT", "OCT": "OKT", "OCTOBER": "OKT",
         "NOV": "NOV", "NOVEMBER": "NOV",
@@ -878,9 +878,17 @@ with tab4:
     # Aging sengaja menggunakan keseluruhan master data (df), bukan df_filter.
     # Ini memastikan baucar lama 2024/2025 tidak hilang apabila filter Tahun/Bulan
     # pada dashboard utama sedang dipilih.
+    # Semua baucar BELUM DIKEMASKINI yang mempunyai BULAN/TAHUN sah.
     aging_base = df[
         (df["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI")
         & (df["UMUR_BULAN"].notna())
+    ].copy()
+
+    # Semakan rekod BELUM DIKEMASKINI yang gagal dikira aging
+    # supaya tiada rekod tercicir tanpa disedari.
+    aging_invalid = df[
+        (df["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI")
+        & (df["UMUR_BULAN"].isna())
     ].copy()
 
     # Carian multi khas aging
@@ -964,11 +972,14 @@ with tab4:
         aging_filtered[aging_filtered["UMUR_BULAN"] >= 12]
     )
 
-    ak1, ak2, ak3, ak4 = st.columns(4)
+    jumlah_aging_invalid = len(aging_invalid)
+
+    ak1, ak2, ak3, ak4, ak5 = st.columns(5)
     ak1.metric("Jumlah Baucar Belum Dikemaskini", f"{jumlah_baucar_aging:,}")
     ak2.metric("> 1 Tahun", f"{jumlah_lebih_1_tahun:,}")
     ak3.metric("Pemilik / ID", f"{jumlah_pemilik_aging:,}")
     ak4.metric("Pemilik Ada Email", f"{jumlah_email_aging:,}")
+    ak5.metric("Tarikh Aging Tidak Sah", f"{jumlah_aging_invalid:,}")
 
     # Ringkasan aging ikut kategori
     aging_summary = (
@@ -1126,6 +1137,21 @@ with tab4:
         use_container_width=True,
         hide_index=True
     )
+
+    if not aging_invalid.empty:
+        with st.expander("⚠️ Lihat rekod yang BULAN/TAHUN tidak dapat dikira"):
+            invalid_cols = [
+                c for c in [
+                    "BULAN_TAHUN", "NO_BAUCAR", "ID", "NAMA",
+                    "NAMA_EMEL", "EMAIL_PEMILIK", "STATUS_KEMASKINI"
+                ]
+                if c in aging_invalid.columns
+            ]
+            st.dataframe(
+                aging_invalid[invalid_cols],
+                use_container_width=True,
+                hide_index=True
+            )
 
     # Detail semua baucar aging
     st.markdown("#### Senarai Detail Baucar Aging")
