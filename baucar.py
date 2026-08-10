@@ -278,18 +278,29 @@ def bulan_tahun_to_date(bulan_series, tahun_series):
     return result
 
 
-def kira_umur_bulan(tarikh_series, tarikh_rujukan=None):
+def kira_umur_bulan_dari_bulan_tahun(bulan_series, tahun_series, tarikh_rujukan=None):
     """
-    Kira perbezaan umur dalam bulan penuh.
+    Kira umur baucar terus daripada BULAN + TAHUN.
+    Kaedah ini lebih robust berbanding bergantung pada conversion tarikh penuh.
     """
     if tarikh_rujukan is None:
         tarikh_rujukan = pd.Timestamp.today().normalize()
 
-    return (
-        (tarikh_rujukan.year - tarikh_series.dt.year) * 12
-        + (tarikh_rujukan.month - tarikh_series.dt.month)
+    month_num_map = {
+        "JAN": 1, "FEB": 2, "MAC": 3, "APR": 4,
+        "MEI": 5, "JUN": 6, "JUL": 7, "OGO": 8,
+        "SEP": 9, "OKT": 10, "NOV": 11, "DIS": 12
+    }
+
+    bulan_num = pd.to_numeric(bulan_series.map(month_num_map), errors="coerce")
+    tahun_num = pd.to_numeric(tahun_series, errors="coerce")
+
+    umur = (
+        (tarikh_rujukan.year - tahun_num) * 12
+        + (tarikh_rujukan.month - bulan_num)
     )
 
+    return umur
 
 def kategori_aging(umur_bulan):
     """
@@ -557,7 +568,13 @@ df["TELAH_DIKEMASKINI"] = df["STATUS_KEMASKINI"].isin(["IN", "OUT"])
 # Rujukan umur berdasarkan BULAN_TAHUN dalam sheet BAUCAR.
 # ==========================================================
 df["TARIKH_BAUCAR"] = bulan_tahun_to_date(df["BULAN"], df["TAHUN"])
-df["UMUR_BULAN"] = kira_umur_bulan(df["TARIKH_BAUCAR"])
+
+# Kira umur terus daripada BULAN + TAHUN untuk elak rekod lama tercicir.
+df["UMUR_BULAN"] = kira_umur_bulan_dari_bulan_tahun(
+    df["BULAN"],
+    df["TAHUN"]
+)
+
 df["KATEGORI_AGING"] = df["UMUR_BULAN"].apply(kategori_aging)
 
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
@@ -1010,13 +1027,23 @@ with tab4:
             .str.strip()
         )
 
+        # Elak rekod tercicir daripada pivot apabila nama/email kosong.
+        aging_filtered["ID"] = aging_filtered["ID"].fillna("").astype(str).str.strip()
+        aging_filtered["NAMA_PEMILIK"] = aging_filtered["NAMA_PEMILIK"].fillna("").astype(str).str.strip()
+        aging_filtered["EMAIL_PEMILIK"] = aging_filtered["EMAIL_PEMILIK"].fillna("").astype(str).str.strip()
+
+        aging_filtered.loc[aging_filtered["ID"] == "", "ID"] = "(Blank)"
+        aging_filtered.loc[aging_filtered["NAMA_PEMILIK"] == "", "NAMA_PEMILIK"] = "(Tiada Nama)"
+        aging_filtered.loc[aging_filtered["EMAIL_PEMILIK"] == "", "EMAIL_PEMILIK"] = "(Tiada Email)"
+
         pivot_aging = pd.pivot_table(
             aging_filtered,
             index=["ID", "NAMA_PEMILIK", "EMAIL_PEMILIK"],
             columns="KATEGORI_AGING",
             values="NO_BAUCAR",
             aggfunc="count",
-            fill_value=0
+            fill_value=0,
+            dropna=False
         ).reset_index()
 
         # Pastikan kolum aging sentiasa kekal dan tersusun,
@@ -1040,7 +1067,60 @@ with tab4:
             + ["JUMLAH"]
         ].sort_values("JUMLAH", ascending=False)
 
-        st.markdown("#### Ringkasan Aging Mengikut Pemilik / ID")
+        # Semakan khusus baucar > 1 tahun
+    lebih_1_tahun_df = aging_filtered[
+        aging_filtered["UMUR_BULAN"] >= 12
+    ].copy()
+
+    st.markdown("#### Semakan Baucar > 1 Tahun")
+
+    vt1, vt2 = st.columns(2)
+    vt1.metric(
+        "Jumlah Baucar > 1 Tahun",
+        f"{len(lebih_1_tahun_df):,}"
+    )
+
+    jumlah_id_lebih_1_tahun = (
+        lebih_1_tahun_df["ID"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .replace("", pd.NA)
+        .dropna()
+        .nunique()
+    )
+
+    vt2.metric(
+        "Pemilik / ID > 1 Tahun",
+        f"{jumlah_id_lebih_1_tahun:,}"
+    )
+
+    with st.expander("Lihat senarai baucar > 1 tahun"):
+        lebih_1_tahun_cols = [
+            c for c in [
+                "BULAN_TAHUN",
+                "NO_BAUCAR",
+                "ID",
+                "NAMA",
+                "NAMA_EMEL",
+                "EMAIL_PEMILIK",
+                "UMUR_BULAN",
+                "KATEGORI_AGING",
+                "STATUS_KEMASKINI"
+            ]
+            if c in lebih_1_tahun_df.columns
+        ]
+
+        st.dataframe(
+            lebih_1_tahun_df[lebih_1_tahun_cols].sort_values(
+                ["UMUR_BULAN", "ID"],
+                ascending=[False, True]
+            ),
+            use_container_width=True,
+            hide_index=True
+        )
+
+    st.markdown("#### Ringkasan Aging Mengikut Pemilik / ID")
         st.dataframe(
             pivot_aging,
             use_container_width=True,
@@ -1064,6 +1144,22 @@ with tab4:
         ]
         if c in aging_filtered.columns
     ]
+
+    # Debug / sanity check ringkas mengikut tahun sumber BAUCAR
+    aging_year_check = (
+        aging_filtered
+        .groupby("TAHUN", dropna=False)
+        .size()
+        .reset_index(name="JUMLAH_BELUM_DIKEMASKINI_AGING")
+        .sort_values("TAHUN")
+    )
+
+    with st.expander("Semakan aging mengikut tahun BAUCAR"):
+        st.dataframe(
+            aging_year_check,
+            use_container_width=True,
+            hide_index=True
+        )
 
     st.caption(f"Paparan: {len(aging_filtered):,} rekod aging")
     st.dataframe(
