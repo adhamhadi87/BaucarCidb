@@ -7,6 +7,10 @@ st.set_page_config(page_title="E-FILING BKA", page_icon="📁", layout="wide")
 
 BAUCAR_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1370653594&single=true&output=csv"
 APPLIKASI_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1571972700&single=true&output=csv"
+
+# GANTIKAN GID_SHEET_EMEL dengan gid sebenar tab "emel"
+EMEL_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1298317374&single=true&output=csv"
+
 ID_LOOKUP_FILE = "list ID.xlsx"
 
 st.markdown("""
@@ -251,6 +255,7 @@ bulan_order = ["JAN", "FEB", "MAC", "APR", "MEI", "JUN", "JUL", "OGO", "SEP", "O
 with st.spinner("Loading data dari Google Sheet..."):
     baucar = load_csv(BAUCAR_CSV_URL)
     aplikasi = load_csv(APPLIKASI_CSV_URL)
+    emel = load_csv(EMEL_CSV_URL)
     id_lookup = load_id_lookup(ID_LOOKUP_FILE)
 
 baucar = baucar.rename(columns={
@@ -276,6 +281,36 @@ aplikasi = aplikasi.rename(columns={
     "EMAIL": "EMAIL"
 })
 
+# SHEET EMEL
+# Sokong dua keadaan:
+# 1. Ada header ID / NAMA / EMAIL
+# 2. Tiada header, data terus bermula pada row pertama
+
+emel.columns = emel.columns.astype(str).str.strip()
+emel_upper_map = {str(c).strip().upper(): c for c in emel.columns}
+
+email_id_col = next((emel_upper_map[x] for x in ["ID", "NO STAF", "NO STAFF"] if x in emel_upper_map), None)
+email_name_col = next((emel_upper_map[x] for x in ["NAMA", "NAME"] if x in emel_upper_map), None)
+email_addr_col = next((emel_upper_map[x] for x in ["EMAIL", "E-MAIL", "EMEL"] if x in emel_upper_map), None)
+
+if email_id_col is None or email_addr_col is None:
+    emel = pd.read_csv(EMEL_CSV_URL, dtype=str, header=None)
+    emel = emel.iloc[:, :3].copy()
+    if emel.shape[1] < 3:
+        st.error("Sheet emel perlu ada sekurang-kurangnya 3 column: ID, NAMA, EMAIL.")
+        st.stop()
+    emel.columns = ["ID", "NAMA_EMEL", "EMAIL_PEMILIK"]
+else:
+    rename_emel = {
+        email_id_col: "ID",
+        email_addr_col: "EMAIL_PEMILIK"
+    }
+    if email_name_col is not None:
+        rename_emel[email_name_col] = "NAMA_EMEL"
+    emel = emel.rename(columns=rename_emel)
+    if "NAMA_EMEL" not in emel.columns:
+        emel["NAMA_EMEL"] = ""
+
 id_lookup = id_lookup.rename(columns={
     "NO STAF": "ID",
     "NO STAFF": "ID",
@@ -286,10 +321,12 @@ id_lookup = id_lookup.rename(columns={
 required_baucar = ["BULAN_TAHUN", "NO_BAUCAR", "NAMA", "ID"]
 required_aplikasi = ["NO_BAUCAR", "IN_OUT"]
 required_lookup = ["ID", "NAMA_ID"]
+required_emel = ["ID", "EMAIL_PEMILIK"]
 
 missing_baucar = [c for c in required_baucar if c not in baucar.columns]
 missing_aplikasi = [c for c in required_aplikasi if c not in aplikasi.columns]
 missing_lookup = [c for c in required_lookup if c not in id_lookup.columns]
+missing_emel = [c for c in required_emel if c not in emel.columns]
 
 if missing_baucar:
     st.error(f"Column tidak dijumpai dalam sheet BAUCAR: {missing_baucar}")
@@ -304,6 +341,11 @@ if missing_aplikasi:
 if missing_lookup:
     st.error(f"Column tidak dijumpai dalam list ID.xlsx: {missing_lookup}")
     st.write("Column list ID.xlsx yang dibaca:", list(id_lookup.columns))
+    st.stop()
+
+if missing_emel:
+    st.error(f"Column tidak dijumpai dalam sheet emel: {missing_emel}")
+    st.write("Column sheet emel yang dibaca:", list(emel.columns))
     st.stop()
 
 # Master BAUCAR
@@ -344,6 +386,19 @@ if "DATE" in aplikasi.columns:
 id_lookup["ID"] = clean_text(id_lookup["ID"])
 id_lookup["NAMA_ID"] = clean_text(id_lookup["NAMA_ID"])
 id_lookup = id_lookup.drop_duplicates(subset=["ID"], keep="first")
+
+# Lookup email pemilik ikut ID dari sheet "emel"
+emel["ID"] = clean_text(emel["ID"]).str.replace(r"\.0$", "", regex=True)
+emel["NAMA_EMEL"] = clean_text(emel["NAMA_EMEL"])
+emel["EMAIL_PEMILIK"] = clean_text(emel["EMAIL_PEMILIK"]).str.lower()
+
+emel = emel[
+    (emel["ID"] != "")
+    & (emel["ID"].str.upper() != "ID")
+    & (emel["EMAIL_PEMILIK"].str.upper() != "EMAIL")
+].copy()
+
+emel = emel.drop_duplicates(subset=["ID"], keep="first")
 
 # ======================================================================
 # STATUS LOGIC - FINAL LOCKED
@@ -400,6 +455,13 @@ else:
     df["IN_OUT"] = ""
 
 df = df.merge(id_lookup[["ID", "NAMA_ID"]], on="ID", how="left")
+
+# Padankan ID BAUCAR dengan NAMA + EMAIL daripada sheet "emel"
+df = df.merge(
+    emel[["ID", "NAMA_EMEL", "EMAIL_PEMILIK"]],
+    on="ID",
+    how="left"
+)
 
 df["ADA_APLIKASI"] = df["NO_BAUCAR_CLEAN"].isin(app_set)
 
@@ -579,6 +641,7 @@ tab1, tab2, tab3 = st.tabs(["Semua Baucar", "Telah Dikemaskini", "Belum Dikemask
 
 papar_cols = [
     "BULAN_TAHUN", "NO_BAUCAR", "NAMA", "ID", "NAMA_ID",
+    "NAMA_EMEL", "EMAIL_PEMILIK",
     "STATUS_KEMASKINI", "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL"
 ]
 papar_cols = [col for col in papar_cols if col in df_filter.columns]
@@ -696,6 +759,28 @@ with tab3:
     st.caption(f"Paparan: {len(belum_papar):,} daripada {len(belum):,} rekod")
     st.dataframe(belum_papar[papar_cols], use_container_width=True, hide_index=True)
 
+
+st.markdown("### 📧 Semakan Padanan Email Pemilik")
+
+email_check = df[["ID", "NAMA_ID", "NAMA_EMEL", "EMAIL_PEMILIK"]].drop_duplicates().copy()
+email_check["ADA_EMAIL"] = email_check["EMAIL_PEMILIK"].fillna("").astype(str).str.strip().ne("")
+
+jumlah_id = email_check["ID"].fillna("").astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+jumlah_ada_email = email_check[email_check["ADA_EMAIL"]]["ID"].fillna("").astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+jumlah_tiada_email = max(jumlah_id - jumlah_ada_email, 0)
+
+ec1, ec2, ec3 = st.columns(3)
+ec1.metric("Jumlah ID", f"{jumlah_id:,}")
+ec2.metric("ID Ada Email", f"{jumlah_ada_email:,}")
+ec3.metric("ID Tiada Email", f"{jumlah_tiada_email:,}")
+
+with st.expander("Lihat ID yang belum mempunyai email"):
+    missing_email_df = email_check[~email_check["ADA_EMAIL"]].copy()
+    st.dataframe(
+        missing_email_df[["ID", "NAMA_ID", "NAMA_EMEL"]],
+        use_container_width=True,
+        hide_index=True
+    )
 
 csv = df_filter.to_csv(index=False).encode("utf-8")
 
