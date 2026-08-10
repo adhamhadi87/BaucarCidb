@@ -1121,11 +1121,11 @@ with tab4:
         )
 
     st.markdown("#### Ringkasan Aging Mengikut Pemilik / ID")
-        st.dataframe(
-            pivot_aging,
-            use_container_width=True,
-            hide_index=True
-        )
+    st.dataframe(
+        pivot_aging,
+        use_container_width=True,
+        hide_index=True
+    )
 
     # Detail semua baucar aging
     st.markdown("#### Senarai Detail Baucar Aging")
