@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import re
 
 st.set_page_config(page_title="E-FILING BKA", page_icon="📁", layout="wide")
 
@@ -250,6 +251,91 @@ def standardize_bulan(series):
     return extracted.fillna("").astype(str).str.upper().str.strip().map(bulan_map)
 
 
+
+def bulan_tahun_to_date(bulan_series, tahun_series):
+    """
+    Tukar BULAN + TAHUN kepada tarikh rujukan hari pertama bulan.
+    Digunakan untuk kira aging baucar.
+    """
+    month_num_map = {
+        "JAN": 1, "FEB": 2, "MAC": 3, "APR": 4,
+        "MEI": 5, "JUN": 6, "JUL": 7, "OGO": 8,
+        "SEP": 9, "OKT": 10, "NOV": 11, "DIS": 12
+    }
+
+    bulan_num = bulan_series.map(month_num_map)
+    tahun_num = pd.to_numeric(tahun_series, errors="coerce")
+
+    result = pd.to_datetime(
+        dict(
+            year=tahun_num,
+            month=bulan_num,
+            day=1
+        ),
+        errors="coerce"
+    )
+
+    return result
+
+
+def kira_umur_bulan(tarikh_series, tarikh_rujukan=None):
+    """
+    Kira perbezaan umur dalam bulan penuh.
+    """
+    if tarikh_rujukan is None:
+        tarikh_rujukan = pd.Timestamp.today().normalize()
+
+    return (
+        (tarikh_rujukan.year - tarikh_series.dt.year) * 12
+        + (tarikh_rujukan.month - tarikh_series.dt.month)
+    )
+
+
+def kategori_aging(umur_bulan):
+    """
+    Kategori aging secara sela 3 bulan.
+    Baucar bawah 3 bulan tidak dimasukkan dalam reminder aging.
+    """
+    if pd.isna(umur_bulan):
+        return "TARIKH TIDAK SAH"
+
+    umur_bulan = int(umur_bulan)
+
+    if umur_bulan < 3:
+        return "< 3 BULAN"
+    if umur_bulan < 6:
+        return "3-6 BULAN"
+    if umur_bulan < 9:
+        return "6-9 BULAN"
+    if umur_bulan < 12:
+        return "9-12 BULAN"
+
+    bawah = (umur_bulan // 3) * 3
+    atas = bawah + 3
+
+    # Jika tepat gandaan 3, kekalkan sebagai julat bermula pada nilai tersebut.
+    if umur_bulan % 3 == 0:
+        return f"{bawah}-{atas} BULAN"
+
+    return f"{bawah}-{atas} BULAN"
+
+
+def aging_sort_key(label):
+    """
+    Susun kategori aging dengan betul.
+    """
+    if label == "< 3 BULAN":
+        return 0
+    if label == "TARIKH TIDAK SAH":
+        return 9999
+
+    match = re.search(r"(\d+)-(\d+)", str(label))
+    if match:
+        return int(match.group(1))
+
+    return 9998
+
+
 bulan_order = ["JAN", "FEB", "MAC", "APR", "MEI", "JUN", "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"]
 
 with st.spinner("Loading data dari Google Sheet..."):
@@ -471,6 +557,16 @@ df.loc[df["ADA_APLIKASI"] & (df["IN_OUT"] == "OUT"), "STATUS_KEMASKINI"] = "OUT"
 
 df["TELAH_DIKEMASKINI"] = df["STATUS_KEMASKINI"].isin(["IN", "OUT"])
 
+
+# ==========================================================
+# AGING BAUCAR
+# Kiraan terus dalam Streamlit - tiada sheet tambahan diperlukan.
+# Rujukan umur berdasarkan BULAN_TAHUN dalam sheet BAUCAR.
+# ==========================================================
+df["TARIKH_BAUCAR"] = bulan_tahun_to_date(df["BULAN"], df["TAHUN"])
+df["UMUR_BULAN"] = kira_umur_bulan(df["TARIKH_BAUCAR"])
+df["KATEGORI_AGING"] = df["UMUR_BULAN"].apply(kategori_aging)
+
 df["ID_FILTER_LABEL"] = df["NAMA_ID"].fillna("").astype(str).str.strip()
 df.loc[df["ID_FILTER_LABEL"] == "", "ID_FILTER_LABEL"] = df["ID"]
 df.loc[df["ID_FILTER_LABEL"].fillna("").astype(str).str.strip() == "", "ID_FILTER_LABEL"] = "(Blank)"
@@ -637,12 +733,13 @@ with c2:
     fig_bulan.update_layout(height=360, margin=dict(l=30, r=20, t=45, b=35))
     st.plotly_chart(fig_bulan, use_container_width=True)
 
-tab1, tab2, tab3 = st.tabs(["Semua Baucar", "Telah Dikemaskini", "Belum Dikemaskini"])
+tab1, tab2, tab3, tab4 = st.tabs(["Semua Baucar", "Telah Dikemaskini", "Belum Dikemaskini", "Aging Baucar"])
 
 papar_cols = [
     "BULAN_TAHUN", "NO_BAUCAR", "NAMA", "ID", "NAMA_ID",
     "NAMA_EMEL", "EMAIL_PEMILIK",
-    "STATUS_KEMASKINI", "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL"
+    "STATUS_KEMASKINI", "UMUR_BULAN", "KATEGORI_AGING",
+    "DATE", "NO_KOTAK", "KOTAK_TAMBAHAN", "EMAIL"
 ]
 papar_cols = [col for col in papar_cols if col in df_filter.columns]
 
@@ -758,6 +855,206 @@ with tab3:
 
     st.caption(f"Paparan: {len(belum_papar):,} daripada {len(belum):,} rekod")
     st.dataframe(belum_papar[papar_cols], use_container_width=True, hide_index=True)
+
+
+
+with tab4:
+    st.markdown("### ⏳ Aging Baucar Belum Dikemaskini")
+    st.caption(
+        "Aging dikira terus daripada BULAN_TAHUN dalam sheet BAUCAR. "
+        "Hanya baucar BELUM DIKEMASKINI yang berumur 3 bulan dan ke atas dimasukkan."
+    )
+
+    aging_base = df_filter[
+        (df_filter["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI")
+        & (df_filter["UMUR_BULAN"].notna())
+        & (df_filter["UMUR_BULAN"] >= 3)
+    ].copy()
+
+    # Carian multi khas aging
+    search_aging = st.text_area(
+        "🔎 Carian Multi - Aging Baucar",
+        key="search_aging_baucar",
+        placeholder="Contoh: 60000001, 60000002\\nAtau paste No Baucar / Nama / ID / Email Pemilik",
+        height=85
+    )
+
+    aging_search_cols = [
+        c for c in [
+            "NO_BAUCAR", "NAMA", "ID", "NAMA_ID",
+            "NAMA_EMEL", "EMAIL_PEMILIK",
+            "BULAN_TAHUN", "KATEGORI_AGING"
+        ]
+        if c in aging_base.columns
+    ]
+
+    aging_filtered = multi_search_dataframe(
+        aging_base,
+        search_aging,
+        aging_search_cols
+    )
+
+    # Filter kategori aging
+    aging_categories = sorted(
+        aging_filtered["KATEGORI_AGING"]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist(),
+        key=aging_sort_key
+    )
+
+    aging_category_filter = st.multiselect(
+        "Kategori Aging",
+        aging_categories,
+        default=aging_categories,
+        key="aging_category_filter"
+    )
+
+    if aging_category_filter:
+        aging_filtered = aging_filtered[
+            aging_filtered["KATEGORI_AGING"].isin(aging_category_filter)
+        ].copy()
+
+    # KPI ringkas
+    jumlah_baucar_aging = len(aging_filtered)
+    jumlah_pemilik_aging = (
+        aging_filtered["ID"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .replace("", pd.NA)
+        .dropna()
+        .nunique()
+    )
+    jumlah_email_aging = (
+        aging_filtered.loc[
+            aging_filtered["EMAIL_PEMILIK"].fillna("").astype(str).str.strip().ne(""),
+            "ID"
+        ]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .replace("", pd.NA)
+        .dropna()
+        .nunique()
+    )
+
+    ak1, ak2, ak3 = st.columns(3)
+    ak1.metric("Baucar Aging ≥ 3 Bulan", f"{jumlah_baucar_aging:,}")
+    ak2.metric("Pemilik / ID", f"{jumlah_pemilik_aging:,}")
+    ak3.metric("Pemilik Ada Email", f"{jumlah_email_aging:,}")
+
+    # Ringkasan aging ikut kategori
+    aging_summary = (
+        aging_filtered
+        .groupby("KATEGORI_AGING", dropna=False)
+        .size()
+        .reset_index(name="JUMLAH_BAUCAR")
+    )
+
+    if not aging_summary.empty:
+        aging_summary["_SORT"] = aging_summary["KATEGORI_AGING"].apply(aging_sort_key)
+        aging_summary = aging_summary.sort_values("_SORT").drop(columns="_SORT")
+
+        fig_aging = px.bar(
+            aging_summary,
+            x="KATEGORI_AGING",
+            y="JUMLAH_BAUCAR",
+            text="JUMLAH_BAUCAR",
+            title="Jumlah Baucar Belum Dikemaskini Mengikut Aging"
+        )
+        fig_aging.update_layout(
+            height=380,
+            xaxis_title="Kategori Aging",
+            yaxis_title="Jumlah Baucar",
+            margin=dict(l=30, r=20, t=45, b=60)
+        )
+        st.plotly_chart(fig_aging, use_container_width=True)
+
+    # Ringkasan per pemilik / ID
+    if not aging_filtered.empty:
+        aging_filtered["NAMA_PEMILIK"] = (
+            aging_filtered["NAMA_EMEL"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+
+        aging_filtered.loc[
+            aging_filtered["NAMA_PEMILIK"] == "",
+            "NAMA_PEMILIK"
+        ] = (
+            aging_filtered["NAMA_ID"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+
+        aging_filtered.loc[
+            aging_filtered["NAMA_PEMILIK"] == "",
+            "NAMA_PEMILIK"
+        ] = (
+            aging_filtered["NAMA"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+
+        pivot_aging = pd.pivot_table(
+            aging_filtered,
+            index=["ID", "NAMA_PEMILIK", "EMAIL_PEMILIK"],
+            columns="KATEGORI_AGING",
+            values="NO_BAUCAR",
+            aggfunc="count",
+            fill_value=0
+        ).reset_index()
+
+        category_cols = [
+            c for c in pivot_aging.columns
+            if c not in ["ID", "NAMA_PEMILIK", "EMAIL_PEMILIK"]
+        ]
+        category_cols = sorted(category_cols, key=aging_sort_key)
+
+        pivot_aging["JUMLAH"] = pivot_aging[category_cols].sum(axis=1)
+        pivot_aging = pivot_aging[
+            ["ID", "NAMA_PEMILIK", "EMAIL_PEMILIK"] + category_cols + ["JUMLAH"]
+        ].sort_values("JUMLAH", ascending=False)
+
+        st.markdown("#### Ringkasan Aging Mengikut Pemilik / ID")
+        st.dataframe(
+            pivot_aging,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    # Detail semua baucar aging
+    st.markdown("#### Senarai Detail Baucar Aging")
+
+    aging_detail_cols = [
+        c for c in [
+            "BULAN_TAHUN",
+            "NO_BAUCAR",
+            "ID",
+            "NAMA",
+            "NAMA_EMEL",
+            "EMAIL_PEMILIK",
+            "UMUR_BULAN",
+            "KATEGORI_AGING",
+            "STATUS_KEMASKINI"
+        ]
+        if c in aging_filtered.columns
+    ]
+
+    st.caption(f"Paparan: {len(aging_filtered):,} rekod aging")
+    st.dataframe(
+        aging_filtered[aging_detail_cols].sort_values(
+            ["UMUR_BULAN", "ID"],
+            ascending=[False, True]
+        ),
+        use_container_width=True,
+        hide_index=True
+    )
 
 
 st.markdown("### 📧 Semakan Padanan Email Pemilik")
