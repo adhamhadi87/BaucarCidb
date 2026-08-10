@@ -233,104 +233,81 @@ def normalize_status(series):
 
 
 def standardize_bulan(series):
-    """
-    Standardize BULAN_TAHUN kepada kod bulan:
-    JAN, FEB, MAC, APR, MEI, JUN, JUL, OGO, SEP, OKT, NOV, DIS.
-
-    Sokong format seperti:
-    - JUN 2026
-    - JUN/2026
-    - JUN-2026
-    - 06/2026
-    - 6/2026
-    - 2026-06
-    - tarikh penuh yang boleh dibaca pandas
-    """
     bulan_map = {
-        "JAN": "JAN", "JANUARI": "JAN", "JANUARY": "JAN",
-        "FEB": "FEB", "FEBRUARI": "FEB", "FEBRUARY": "FEB",
+        "JAN": "JAN", "JANUARI": "JAN",
+        "FEB": "FEB", "FEBRUARI": "FEB",
         "MAC": "MAC", "MAR": "MAC", "MARCH": "MAC",
         "APR": "APR", "APRIL": "APR",
         "MEI": "MEI", "MAY": "MEI",
         "JUN": "JUN", "JUNE": "JUN",
-        "JUL": "JUL", "JULY": "JUL",
+        "JUL": "JUL", "JULY": "JUL", "JULAI": "JUL",
         "OGO": "OGO", "OGOS": "OGO", "AUG": "OGO", "AUGUST": "OGO",
         "SEP": "SEP", "SEPT": "SEP", "SEPTEMBER": "SEP",
         "OKT": "OKT", "OCT": "OKT", "OCTOBER": "OKT",
         "NOV": "NOV", "NOVEMBER": "NOV",
         "DIS": "DIS", "DEC": "DIS", "DECEMBER": "DIS"
     }
+    extracted = series.fillna("").astype(str).str.extract(r"([A-Za-zÀ-ÿ]+)")[0]
+    return extracted.fillna("").astype(str).str.upper().str.strip().map(bulan_map)
 
-    month_num_map = {
-        1: "JAN", 2: "FEB", 3: "MAC", 4: "APR",
-        5: "MEI", 6: "JUN", 7: "JUL", 8: "OGO",
-        9: "SEP", 10: "OKT", 11: "NOV", 12: "DIS"
+
+def parse_bulan_tahun_aging(series):
+    """
+    Parser KHAS untuk Aging sahaja.
+    Tidak mengubah BULAN / TAHUN yang digunakan dashboard utama.
+
+    Sokong nama bulan dan format nombor seperti:
+    JAN 2026, JULAI 2026, OGOS/2026, 08/2026, 2026-08.
+    """
+    month_name_map = {
+        "JAN": 1, "JANUARI": 1, "JANUARY": 1,
+        "FEB": 2, "FEBRUARI": 2, "FEBRUARY": 2,
+        "MAC": 3, "MAR": 3, "MARCH": 3,
+        "APR": 4, "APRIL": 4,
+        "MEI": 5, "MAY": 5,
+        "JUN": 6, "JUNE": 6,
+        "JUL": 7, "JULAI": 7, "JULY": 7,
+        "OGO": 8, "OGOS": 8, "AUG": 8, "AUGUST": 8,
+        "SEP": 9, "SEPT": 9, "SEPTEMBER": 9,
+        "OKT": 10, "OCT": 10, "OCTOBER": 10,
+        "NOV": 11, "NOVEMBER": 11,
+        "DIS": 12, "DEC": 12, "DECEMBER": 12
     }
 
     def parse_one(value):
         if pd.isna(value):
-            return None
+            return pd.Series([pd.NA, pd.NA])
 
-        s = str(value).strip()
+        s = str(value).strip().upper()
         if not s:
-            return None
+            return pd.Series([pd.NA, pd.NA])
 
-        upper = s.upper()
+        year_match = re.search(r"(20\d{2})", s)
+        year = int(year_match.group(1)) if year_match else None
 
-        # 1) Cuba nama bulan dahulu.
-        for key, mapped in bulan_map.items():
-            if re.search(rf"\b{re.escape(key)}\b", upper):
-                return mapped
+        month = None
+        for name, num in month_name_map.items():
+            if re.search(rf"(?<![A-Z]){re.escape(name)}(?![A-Z])", s):
+                month = num
+                break
 
-        # 2) Format MM/YYYY, M/YYYY, MM-YYYY, M-YYYY
-        m = re.search(r"(?<!\d)(0?[1-9]|1[0-2])\s*[/-]\s*(20\d{2})(?!\d)", upper)
-        if m:
-            return month_num_map.get(int(m.group(1)))
+        if month is None:
+            m = re.search(r"(?<!\d)(0?[1-9]|1[0-2])\s*[/-]\s*(20\d{2})(?!\d)", s)
+            if m:
+                month = int(m.group(1))
+                year = int(m.group(2))
 
-        # 3) Format YYYY-MM, YYYY/M
-        m = re.search(r"(?<!\d)(20\d{2})\s*[/-]\s*(0?[1-9]|1[0-2])(?!\d)", upper)
-        if m:
-            return month_num_map.get(int(m.group(2)))
+        if month is None:
+            m = re.search(r"(?<!\d)(20\d{2})\s*[/-]\s*(0?[1-9]|1[0-2])(?!\d)", s)
+            if m:
+                year = int(m.group(1))
+                month = int(m.group(2))
 
-        # 4) Cuba pandas date parser sebagai fallback.
-        try:
-            dt = pd.to_datetime(s, errors="coerce", dayfirst=True)
-            if not pd.isna(dt):
-                return month_num_map.get(int(dt.month))
-        except Exception:
-            pass
+        return pd.Series([month, year])
 
-        return None
-
-    return series.apply(parse_one)
-
-
-def extract_tahun_bulan_tahun(series):
-    """
-    Extract tahun daripada BULAN_TAHUN secara robust.
-    """
-    def parse_year(value):
-        if pd.isna(value):
-            return None
-
-        s = str(value).strip()
-        if not s:
-            return None
-
-        m = re.search(r"(20\d{2})", s)
-        if m:
-            return m.group(1)
-
-        try:
-            dt = pd.to_datetime(s, errors="coerce", dayfirst=True)
-            if not pd.isna(dt):
-                return str(int(dt.year))
-        except Exception:
-            pass
-
-        return None
-
-    return series.apply(parse_year)
+    parsed = series.apply(parse_one)
+    parsed.columns = ["AGING_MONTH_NUM", "AGING_YEAR_NUM"]
+    return parsed
 
 def bulan_tahun_to_date(bulan_series, tahun_series):
     """
@@ -520,7 +497,7 @@ if missing_emel:
 # Master BAUCAR
 baucar["NO_BAUCAR_CLEAN"] = clean_no_baucar(baucar["NO_BAUCAR"])
 baucar["ID"] = clean_text(baucar["ID"])
-baucar["TAHUN"] = extract_tahun_bulan_tahun(baucar["BULAN_TAHUN"])
+baucar["TAHUN"] = baucar["BULAN_TAHUN"].fillna("").astype(str).str.extract(r"(\d{4})")
 baucar["BULAN"] = standardize_bulan(baucar["BULAN_TAHUN"])
 
 # APPLIKASI
@@ -646,12 +623,16 @@ df["TELAH_DIKEMASKINI"] = df["STATUS_KEMASKINI"].isin(["IN", "OUT"])
 # Kiraan terus dalam Streamlit - tiada sheet tambahan diperlukan.
 # Rujukan umur berdasarkan BULAN_TAHUN dalam sheet BAUCAR.
 # ==========================================================
-df["TARIKH_BAUCAR"] = bulan_tahun_to_date(df["BULAN"], df["TAHUN"])
+# Aging dikira secara BERASINGAN daripada filter Tahun/Bulan dashboard utama.
+# Ini memastikan perubahan Aging tidak boleh mengosongkan data dashboard utama.
+aging_parsed = parse_bulan_tahun_aging(df["BULAN_TAHUN"])
+df["AGING_MONTH_NUM"] = pd.to_numeric(aging_parsed["AGING_MONTH_NUM"], errors="coerce")
+df["AGING_YEAR_NUM"] = pd.to_numeric(aging_parsed["AGING_YEAR_NUM"], errors="coerce")
 
-# Kira umur terus daripada BULAN + TAHUN untuk elak rekod lama tercicir.
-df["UMUR_BULAN"] = kira_umur_bulan_dari_bulan_tahun(
-    df["BULAN"],
-    df["TAHUN"]
+_today_aging = pd.Timestamp.today().normalize()
+df["UMUR_BULAN"] = (
+    (_today_aging.year - df["AGING_YEAR_NUM"]) * 12
+    + (_today_aging.month - df["AGING_MONTH_NUM"])
 )
 
 df["KATEGORI_AGING"] = df["UMUR_BULAN"].apply(kategori_aging)
@@ -1283,7 +1264,7 @@ with tab4:
         with st.expander("⚠️ Lihat rekod yang BULAN/TAHUN tidak dapat dikira"):
             invalid_cols = [
                 c for c in [
-                    "BULAN_TAHUN", "NO_BAUCAR", "ID", "NAMA",
+                    "BULAN_TAHUN", "AGING_MONTH_NUM", "AGING_YEAR_NUM", "NO_BAUCAR", "ID", "NAMA",
                     "NAMA_EMEL", "EMAIL_PEMILIK", "STATUS_KEMASKINI"
                 ]
                 if c in aging_invalid.columns
