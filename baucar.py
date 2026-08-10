@@ -855,13 +855,17 @@ with tab4:
     st.markdown("### ⏳ Aging Baucar Belum Dikemaskini")
     st.caption(
         "Aging dikira terus daripada BULAN_TAHUN dalam sheet BAUCAR. "
-        "Kategori: 3-6 bulan, 6-9 bulan, 9-12 bulan dan >1 tahun."
+        "Kategori: 3-6 bulan, 6-9 bulan, 9-12 bulan dan >1 tahun. "
+        "Tab ini tidak dipengaruhi filter Tahun/Bulan di sidebar."
     )
 
-    aging_base = df_filter[
-        (df_filter["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI")
-        & (df_filter["UMUR_BULAN"].notna())
-        & (df_filter["UMUR_BULAN"] >= 3)
+    # Aging sengaja menggunakan keseluruhan master data (df), bukan df_filter.
+    # Ini memastikan baucar lama 2024/2025 tidak hilang apabila filter Tahun/Bulan
+    # pada dashboard utama sedang dipilih.
+    aging_base = df[
+        (df["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI")
+        & (df["UMUR_BULAN"].notna())
+        & (df["UMUR_BULAN"] >= 3)
     ].copy()
 
     # Carian multi khas aging
@@ -933,10 +937,15 @@ with tab4:
         .nunique()
     )
 
-    ak1, ak2, ak3 = st.columns(3)
+    jumlah_lebih_1_tahun = len(
+        aging_filtered[aging_filtered["UMUR_BULAN"] >= 12]
+    )
+
+    ak1, ak2, ak3, ak4 = st.columns(4)
     ak1.metric("Baucar Aging ≥ 3 Bulan", f"{jumlah_baucar_aging:,}")
-    ak2.metric("Pemilik / ID", f"{jumlah_pemilik_aging:,}")
-    ak3.metric("Pemilik Ada Email", f"{jumlah_email_aging:,}")
+    ak2.metric("> 1 Tahun", f"{jumlah_lebih_1_tahun:,}")
+    ak3.metric("Pemilik / ID", f"{jumlah_pemilik_aging:,}")
+    ak4.metric("Pemilik Ada Email", f"{jumlah_email_aging:,}")
 
     # Ringkasan aging ikut kategori
     aging_summary = (
