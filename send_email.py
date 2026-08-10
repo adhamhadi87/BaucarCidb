@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import time
+from io import StringIO
 import pandas as pd
 import requests
 
@@ -17,6 +18,41 @@ TEST_MODE = os.getenv("TEST_MODE", "true").strip().lower() == "true"
 TEST_EMAIL = os.getenv("TEST_EMAIL", "").strip()
 GROUP_KEWANGAN_EMAIL = os.getenv("GROUP_KEWANGAN_EMAIL", "").strip()
 TEST_MAX_EMAILS = int(os.getenv("TEST_MAX_EMAILS", "3"))
+
+
+def load_csv_url(url, label="CSV"):
+    """
+    Load published Google Sheet CSV using requests instead of pandas URL opener.
+    More stable in GitHub Actions because Google may redirect the published URL.
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "text/csv,text/plain,*/*",
+    }
+
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=90,
+        allow_redirects=True,
+    )
+
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"Gagal baca {label}: HTTP {response.status_code} | "
+            f"URL akhir: {response.url} | "
+            f"Response: {response.text[:300]}"
+        )
+
+    content = response.text
+
+    if not content.strip():
+        raise RuntimeError(f"{label} kosong.")
+
+    return pd.read_csv(
+        StringIO(content),
+        dtype=str
+    )
 
 def validate_config():
     missing = []
@@ -103,7 +139,21 @@ def normalize_email_sheet(emel):
     name_col = next((cmap[x] for x in ["NAMA","NAME"] if x in cmap), None)
     email_col = next((cmap[x] for x in ["EMAIL","E-MAIL","EMEL"] if x in cmap), None)
     if id_col is None or email_col is None:
-        emel = pd.read_csv(EMEL_CSV_URL, dtype=str, header=None).iloc[:, :3].copy()
+        response = requests.get(
+            EMEL_CSV_URL,
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=90,
+            allow_redirects=True,
+        )
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"Gagal baca EMEL tanpa header: HTTP {response.status_code}"
+            )
+        emel = pd.read_csv(
+            StringIO(response.text),
+            dtype=str,
+            header=None
+        ).iloc[:, :3].copy()
         emel.columns = ["ID","NAMA_EMEL","EMAIL_PEMILIK"]
     else:
         rename_map = {id_col:"ID", email_col:"EMAIL_PEMILIK"}
@@ -119,9 +169,9 @@ def normalize_email_sheet(emel):
     return emel.drop_duplicates(subset=["ID"], keep="first")
 
 def build_master_data():
-    baucar = pd.read_csv(BAUCAR_CSV_URL, dtype=str)
-    aplikasi = pd.read_csv(APPLIKASI_CSV_URL, dtype=str)
-    emel = pd.read_csv(EMEL_CSV_URL, dtype=str)
+    baucar = load_csv_url(BAUCAR_CSV_URL, "BAUCAR")
+    aplikasi = load_csv_url(APPLIKASI_CSV_URL, "APPLIKASI")
+    emel = load_csv_url(EMEL_CSV_URL, "EMEL")
     for df in (baucar, aplikasi, emel):
         df.columns = df.columns.astype(str).str.strip()
 
