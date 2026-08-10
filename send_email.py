@@ -83,46 +83,85 @@ def normalize_status(series):
     return series.fillna("").astype(str).str.upper().str.strip().str.replace(r"\s+", "", regex=True)
 
 def extract_month_year(value):
+    """
+    Return (year, month) from BULAN_TAHUN.
+
+    Supports examples such as:
+    JAN 2026, JAN/2026, 01/2026, 2026-01,
+    01-08-2026, 1 AUG 2026, and other pandas-readable dates.
+    """
     if pd.isna(value):
         return None, None
-    s = str(value).strip()
-    if not s:
+
+    raw = str(value).strip()
+    if not raw:
         return None, None
-    upper = s.upper()
+
+    s = raw.upper()
+
     month_map = {
-        "JAN":1,"JANUARI":1,"JANUARY":1,"FEB":2,"FEBRUARI":2,"FEBRUARY":2,
-        "MAC":3,"MAR":3,"MARCH":3,"APR":4,"APRIL":4,"MEI":5,"MAY":5,
-        "JUN":6,"JUNE":6,"JUL":7,"JULY":7,"OGO":8,"OGOS":8,"AUG":8,"AUGUST":8,
-        "SEP":9,"SEPT":9,"SEPTEMBER":9,"OKT":10,"OCT":10,"OCTOBER":10,
-        "NOV":11,"NOVEMBER":11,"DIS":12,"DEC":12,"DECEMBER":12
+        "JAN":1, "JANUARI":1, "JANUARY":1,
+        "FEB":2, "FEBRUARI":2, "FEBRUARY":2,
+        "MAC":3, "MAR":3, "MARCH":3,
+        "APR":4, "APRIL":4,
+        "MEI":5, "MAY":5,
+        "JUN":6, "JUNE":6,
+        "JUL":7, "JULY":7,
+        "OGO":8, "OGOS":8, "AUG":8, "AUGUST":8,
+        "SEP":9, "SEPT":9, "SEPTEMBER":9,
+        "OKT":10, "OCT":10, "OCTOBER":10,
+        "NOV":11, "NOVEMBER":11,
+        "DIS":12, "DEC":12, "DECEMBER":12,
     }
-    ym = re.search(r"(20\d{2})", upper)
-    year = int(ym.group(1)) if ym else None
-    for key, month in month_map.items():
-        if re.search(rf"\b{re.escape(key)}\b", upper):
-            return year, month
-    m = re.search(r"(?<!\d)(0?[1-9]|1[0-2])\s*[/-]\s*(20\d{2})(?!\d)", upper)
+
+    year_match = re.search(r"(20\d{2})", s)
+    year = int(year_match.group(1)) if year_match else None
+
+    for token, month_num in month_map.items():
+        if re.search(rf"\b{re.escape(token)}\b", s):
+            return year, month_num
+
+    m = re.search(r"(?<!\d)(0?[1-9]|1[0-2])\s*[/-]\s*(20\d{2})(?!\d)", s)
     if m:
         return int(m.group(2)), int(m.group(1))
-    m = re.search(r"(?<!\d)(20\d{2})\s*[/-]\s*(0?[1-9]|1[0-2])(?!\d)", upper)
+
+    m = re.search(r"(?<!\d)(20\d{2})\s*[/-]\s*(0?[1-9]|1[0-2])(?!\d)", s)
     if m:
         return int(m.group(1)), int(m.group(2))
-    dt = pd.to_datetime(s, errors="coerce", dayfirst=True)
+
+    m = re.search(
+        r"(?<!\d)(0?[1-9]|[12]\d|3[01])\s*[/-]\s*"
+        r"(0?[1-9]|1[0-2])\s*[/-]\s*(20\d{2})(?!\d)",
+        s
+    )
+    if m:
+        return int(m.group(3)), int(m.group(2))
+
+    dt = pd.to_datetime(raw, errors="coerce", dayfirst=True)
     if not pd.isna(dt):
         return int(dt.year), int(dt.month)
+
     return None, None
 
-def calculate_age_months(value):
-    today = pd.Timestamp.today().normalize()
+
+def calculate_age_months(value, reference_date=None):
+    if reference_date is None:
+        reference_date = pd.Timestamp.today().normalize()
+
     year, month = extract_month_year(value)
+
     if year is None or month is None:
         return None
-    return (today.year - year) * 12 + (today.month - month)
+
+    return (reference_date.year - year) * 12 + (reference_date.month - month)
+
 
 def aging_category(age):
     if age is None or pd.isna(age):
         return "TIDAK SAH"
+
     age = int(age)
+
     if age < 3:
         return "0-3 BULAN"
     if age < 6:
@@ -131,7 +170,46 @@ def aging_category(age):
         return "6-9 BULAN"
     if age < 12:
         return "9-12 BULAN"
+
     return ">1 TAHUN"
+
+
+def print_aging_debug(df):
+    print("")
+    print("========== DEBUG AGING ==========")
+
+    sample = (
+        df[["BULAN_TAHUN", "UMUR_BULAN", "KATEGORI_AGING"]]
+        .drop_duplicates()
+        .head(20)
+    )
+
+    print("Contoh BULAN_TAHUN -> UMUR_BULAN:")
+    for _, row in sample.iterrows():
+        print(
+            f"{repr(row['BULAN_TAHUN'])} -> "
+            f"{row['UMUR_BULAN']} -> "
+            f"{row['KATEGORI_AGING']}"
+        )
+
+    invalid = df[df["UMUR_BULAN"].isna()].copy()
+
+    print(f"Jumlah aging tidak sah: {len(invalid):,}")
+
+    if not invalid.empty:
+        print("Contoh BULAN_TAHUN gagal parse:")
+        for value in (
+            invalid["BULAN_TAHUN"]
+            .fillna("")
+            .astype(str)
+            .drop_duplicates()
+            .head(20)
+            .tolist()
+        ):
+            print(f"- {repr(value)}")
+
+    print("=================================")
+    print("")
 
 def normalize_email_sheet(emel):
     cmap = {str(c).strip().upper(): c for c in emel.columns}
@@ -292,6 +370,8 @@ def main():
     print(f"TEST_MODE={TEST_MODE}")
     df = build_master_data()
 
+    print_aging_debug(df)
+
     belum = df[df["STATUS_KEMASKINI"] == "BELUM DIKEMASKINI"].copy()
     reminder = belum[(belum["UMUR_BULAN"].notna()) & (belum["UMUR_BULAN"] >= 3)].copy()
 
@@ -300,8 +380,8 @@ def main():
     print(f"Jumlah reminder >=3 bulan: {len(reminder):,}")
 
     if reminder.empty:
-        print("Tiada baucar untuk dihantar.")
-        return
+        print("Tiada baucar reminder >=3 bulan. Semak DEBUG AGING di atas.")
+        sys.exit(1)
 
     sent = skipped = failed = 0
     grouped = reminder.groupby("ID", dropna=False)
