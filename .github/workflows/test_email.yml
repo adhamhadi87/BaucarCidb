@@ -1,15 +1,10 @@
-name: E-Filing BKA Weekly Reminder
+name: Test E-Filing BKA Gmail
 
 on:
   workflow_dispatch:
 
-  schedule:
-    # Setiap Rabu, 9:00 pagi waktu Malaysia (UTC+8)
-    # GitHub Actions cron menggunakan UTC
-    - cron: "0 1 * * 3"
-
 jobs:
-  send-weekly-email:
+  send-test-email:
     runs-on: ubuntu-latest
 
     steps:
@@ -26,15 +21,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas requests
 
-      - name: Run E-Filing BKA weekly reminder
+      - name: Run Gmail email test
         env:
-          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
-          BREVO_FROM_EMAIL: ${{ secrets.BREVO_FROM_EMAIL }}
-          BREVO_FROM_NAME: ${{ secrets.BREVO_FROM_NAME }}
-
-          # LIVE MODE:
-          # Email dihantar kepada EMAIL_PEMILIK
-          # yang dipadankan melalui ID dalam sheet EMEL.
-          TEST_MODE: "false"
-
+          GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
+          TEST_MODE: ${{ secrets.TEST_MODE }}
         run: python send_email.py
