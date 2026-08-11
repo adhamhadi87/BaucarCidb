@@ -1,10 +1,15 @@
-name: GMAIL TEST - E-Filing BKA
+name: E-Filing BKA Weekly Gmail Reminder
 
 on:
   workflow_dispatch:
 
+  schedule:
+    # Setiap Rabu, 9:00 pagi waktu Malaysia (UTC+8)
+    # GitHub Actions cron menggunakan UTC
+    - cron: "0 1 * * 3"
+
 jobs:
-  send-test-email:
+  send-weekly-email:
     runs-on: ubuntu-latest
 
     steps:
@@ -25,7 +30,6 @@ jobs:
         env:
           GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
         run: |
           if [ -z "$GMAIL_USERNAME" ]; then
             echo "ERROR: GMAIL_USERNAME tidak diterima oleh workflow"
@@ -41,18 +45,12 @@ jobs:
             echo "OK: GMAIL_APP_PASSWORD diterima"
           fi
 
-          if [ -z "$TEST_EMAIL" ]; then
-            echo "ERROR: TEST_EMAIL tidak diterima oleh workflow"
-            exit 1
-          else
-            echo "OK: TEST_EMAIL diterima"
-          fi
-
-      - name: Run Gmail email test
+      - name: Run weekly Gmail reminder
         env:
           GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
-          TEST_MODE: "true"
-          TEST_MAX_EMAILS: "3"
+
+          # LIVE MODE
+          TEST_MODE: "false"
+
         run: python send_email.py
