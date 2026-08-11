@@ -30,6 +30,7 @@ jobs:
         env:
           GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          BOSS_EMAILS: ${{ secrets.BOSS_EMAILS }}
         run: |
           if [ -z "$GMAIL_USERNAME" ]; then
             echo "ERROR: GMAIL_USERNAME tidak diterima oleh workflow"
@@ -45,10 +46,17 @@ jobs:
             echo "OK: GMAIL_APP_PASSWORD diterima"
           fi
 
+          if [ -z "$BOSS_EMAILS" ]; then
+            echo "WARNING: BOSS_EMAILS kosong - ringkasan boss tidak akan dihantar"
+          else
+            echo "OK: BOSS_EMAILS diterima"
+          fi
+
       - name: Run weekly Gmail reminder
         env:
           GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          BOSS_EMAILS: ${{ secrets.BOSS_EMAILS }}
 
           # LIVE MODE
           TEST_MODE: "false"
