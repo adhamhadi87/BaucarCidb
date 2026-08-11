@@ -13,13 +13,14 @@ APPLIKASI_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjL
 EMEL_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1298317374&single=true&output=csv"
 
 
-SCRIPT_VERSION = "BKA-GMAIL-2026-08-11-V1-TXT-ATTACHMENT"
+SCRIPT_VERSION = "BKA-GMAIL-2026-08-11-V3-MULTI-BOSS-SUMMARY"
 GMAIL_USERNAME = os.getenv("GMAIL_USERNAME", "").strip()
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
 GMAIL_FROM_NAME = os.getenv("GMAIL_FROM_NAME", "E-Filing BKA").strip()
 TEST_MODE = os.getenv("TEST_MODE", "true").strip().lower() == "true"
 TEST_EMAIL = os.getenv("TEST_EMAIL", "").strip()
 GROUP_KEWANGAN_EMAIL = os.getenv("GROUP_KEWANGAN_EMAIL", "").strip()
+BOSS_EMAILS = os.getenv("BOSS_EMAILS", "").strip()
 TEST_MAX_EMAILS = int(os.getenv("TEST_MAX_EMAILS", "3"))
 
 
@@ -490,6 +491,255 @@ def build_email_html(owner_name, owner_id, rows):
     """
 
 
+
+def build_boss_summary_html(reminder):
+    categories = ["3-6 BULAN", "6-9 BULAN", "9-12 BULAN", ">1 TAHUN"]
+
+    counts = {
+        category: int((reminder["KATEGORI_AGING"] == category).sum())
+        for category in categories
+    }
+
+    summary = (
+        reminder
+        .groupby(["ID"], dropna=False)
+        .agg(
+            NAMA=("NAMA_EMEL", lambda s: first_non_blank(s, "")),
+            JUMLAH=("NO_BAUCAR", "count")
+        )
+        .reset_index()
+    )
+
+    # Fallback nama dari BAUCAR jika NAMA_EMEL kosong
+    if "NAMA" in reminder.columns:
+        fallback_names = (
+            reminder
+            .groupby("ID", dropna=False)["NAMA"]
+            .apply(lambda s: first_non_blank(s, ""))
+            .to_dict()
+        )
+        summary["NAMA"] = summary.apply(
+            lambda r: r["NAMA"] if str(r["NAMA"]).strip()
+            else fallback_names.get(r["ID"], ""),
+            axis=1
+        )
+
+    summary = summary.sort_values(
+        ["JUMLAH", "ID"],
+        ascending=[False, True]
+    )
+
+    rows_html = []
+
+    for _, row in summary.iterrows():
+        rows_html.append(
+            f"""
+            <tr>
+                <td style="padding:8px;border:1px solid #ddd;">
+                    {safe_html(row["ID"])}
+                </td>
+                <td style="padding:8px;border:1px solid #ddd;">
+                    {safe_html(row["NAMA"])}
+                </td>
+                <td style="padding:8px;border:1px solid #ddd;text-align:right;">
+                    {int(row["JUMLAH"]):,}
+                </td>
+            </tr>
+            """
+        )
+
+    total_all = len(reminder)
+
+    rows_html.append(
+        f"""
+        <tr>
+            <td colspan="2" style="padding:8px;border:1px solid #ddd;">
+                <b>JUMLAH KESELURUHAN</b>
+            </td>
+            <td style="padding:8px;border:1px solid #ddd;text-align:right;">
+                <b>{total_all:,}</b>
+            </td>
+        </tr>
+        """
+    )
+
+    return f"""
+    <html>
+    <body style="font-family:Arial,sans-serif;color:#222;">
+
+        <h2>Ringkasan Mingguan E-Filing BKA</h2>
+
+        <p>
+            Berikut adalah ringkasan baucar
+            <b>BELUM DIKEMASKINI</b> yang telah mencapai
+            tempoh <b>3 bulan atau lebih</b>.
+        </p>
+
+        <h3>Ringkasan Aging Keseluruhan</h3>
+
+        <table style="border-collapse:collapse;width:520px;">
+            <tr>
+                <th style="padding:8px;border:1px solid #ddd;text-align:left;">
+                    Kategori Aging
+                </th>
+                <th style="padding:8px;border:1px solid #ddd;text-align:right;">
+                    Jumlah
+                </th>
+            </tr>
+            <tr>
+                <td style="padding:8px;border:1px solid #ddd;">3-6 Bulan</td>
+                <td style="padding:8px;border:1px solid #ddd;text-align:right;">
+                    {counts["3-6 BULAN"]:,}
+                </td>
+            </tr>
+            <tr>
+                <td style="padding:8px;border:1px solid #ddd;">6-9 Bulan</td>
+                <td style="padding:8px;border:1px solid #ddd;text-align:right;">
+                    {counts["6-9 BULAN"]:,}
+                </td>
+            </tr>
+            <tr>
+                <td style="padding:8px;border:1px solid #ddd;">9-12 Bulan</td>
+                <td style="padding:8px;border:1px solid #ddd;text-align:right;">
+                    {counts["9-12 BULAN"]:,}
+                </td>
+            </tr>
+            <tr>
+                <td style="padding:8px;border:1px solid #ddd;">&gt; 1 Tahun</td>
+                <td style="padding:8px;border:1px solid #ddd;text-align:right;">
+                    {counts[">1 TAHUN"]:,}
+                </td>
+            </tr>
+            <tr>
+                <td style="padding:8px;border:1px solid #ddd;">
+                    <b>JUMLAH KESELURUHAN</b>
+                </td>
+                <td style="padding:8px;border:1px solid #ddd;text-align:right;">
+                    <b>{total_all:,}</b>
+                </td>
+            </tr>
+        </table>
+
+        <h3>Ringkasan Mengikut ID / Nama</h3>
+
+        <table style="border-collapse:collapse;width:100%;">
+            <tr>
+                <th style="padding:8px;border:1px solid #ddd;text-align:left;">
+                    ID
+                </th>
+                <th style="padding:8px;border:1px solid #ddd;text-align:left;">
+                    Nama
+                </th>
+                <th style="padding:8px;border:1px solid #ddd;text-align:right;">
+                    Jumlah Baucar ≥3 Bulan
+                </th>
+            </tr>
+
+            {''.join(rows_html)}
+        </table>
+
+        <p>Sekian, terima kasih.</p>
+
+        <p>
+            <b>Bahagian Kewangan &amp; Akaun</b><br>
+            CIDB Malaysia
+        </p>
+
+        <hr>
+        <p style="font-size:11px;color:#777;">
+            Email ini dijana secara automatik oleh sistem E-Filing BKA.
+        </p>
+
+    </body>
+    </html>
+    """
+
+
+def parse_email_list(value):
+    """
+    Terima senarai email dipisahkan dengan koma atau semicolon.
+    Contoh:
+    a@cidb.gov.my,b@cidb.gov.my;c@cidb.gov.my
+    """
+    if not value:
+        return []
+
+    emails = re.split(r"[;,]+", value)
+
+    cleaned = []
+    seen = set()
+
+    for email in emails:
+        email = email.strip().lower()
+
+        if not email:
+            continue
+
+        if email not in seen:
+            cleaned.append(email)
+            seen.add(email)
+
+    return cleaned
+
+
+def send_boss_summary(reminder):
+    boss_emails = parse_email_list(BOSS_EMAILS)
+
+    if not boss_emails:
+        print("BOSS SUMMARY SKIP: BOSS_EMAILS belum ditetapkan.")
+        return
+
+    html = build_boss_summary_html(reminder)
+
+    subject = (
+        f"Ringkasan Mingguan E-Filing BKA - "
+        f"{len(reminder):,} Baucar ≥3 Bulan"
+    )
+
+    msg = EmailMessage()
+
+    msg["From"] = f"{GMAIL_FROM_NAME} <{GMAIL_USERNAME}>"
+    msg["To"] = ", ".join(boss_emails)
+    msg["Subject"] = subject
+
+    msg.set_content(
+        "Ringkasan Mingguan E-Filing BKA. "
+        "Sila buka email dalam format HTML untuk melihat ringkasan."
+    )
+
+    msg.add_alternative(
+        html,
+        subtype="html"
+    )
+
+    with smtplib.SMTP(
+        "smtp.gmail.com",
+        587,
+        timeout=60
+    ) as server:
+
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+
+        server.login(
+            GMAIL_USERNAME,
+            GMAIL_APP_PASSWORD
+        )
+
+        server.send_message(
+            msg,
+            from_addr=GMAIL_USERNAME,
+            to_addrs=boss_emails
+        )
+
+    print(
+        f"BOSS SUMMARY SENT | "
+        f"TO={','.join(boss_emails)} | "
+        f"TOTAL={len(reminder):,}"
+    )
+
+
 def send_gmail_email(
     to_email,
     to_name,
@@ -645,6 +895,15 @@ def main():
     print(f"Berjaya dihantar: {sent}")
     print(f"Tiada email: {skipped}")
     print(f"Gagal: {failed}")
+
+    # Email ringkasan berasingan kepada boss
+    # Hanya dihantar dalam LIVE MODE.
+    if not TEST_MODE:
+        try:
+            send_boss_summary(reminder)
+        except Exception as exc:
+            print(f"BOSS SUMMARY FAILED | {exc}")
+            failed += 1
 
     if failed:
         sys.exit(1)
