@@ -1,4 +1,4 @@
-name: Test E-Filing BKA Gmail
+name: GMAIL TEST - E-Filing BKA
 
 on:
   workflow_dispatch:
@@ -21,10 +21,38 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas requests
 
+      - name: Check Gmail secrets
+        env:
+          GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
+        run: |
+          if [ -z "$GMAIL_USERNAME" ]; then
+            echo "ERROR: GMAIL_USERNAME tidak diterima oleh workflow"
+            exit 1
+          else
+            echo "OK: GMAIL_USERNAME diterima"
+          fi
+
+          if [ -z "$GMAIL_APP_PASSWORD" ]; then
+            echo "ERROR: GMAIL_APP_PASSWORD tidak diterima oleh workflow"
+            exit 1
+          else
+            echo "OK: GMAIL_APP_PASSWORD diterima"
+          fi
+
+          if [ -z "$TEST_EMAIL" ]; then
+            echo "ERROR: TEST_EMAIL tidak diterima oleh workflow"
+            exit 1
+          else
+            echo "OK: TEST_EMAIL diterima"
+          fi
+
       - name: Run Gmail email test
         env:
           GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
-          TEST_MODE: ${{ secrets.TEST_MODE }}
+          TEST_MODE: "true"
+          TEST_MAX_EMAILS: "3"
         run: python send_email.py
