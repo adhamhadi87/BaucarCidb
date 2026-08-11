@@ -1,22 +1,22 @@
 import os
-import base64
 import re
 import sys
 import time
 from io import StringIO
+from email.message import EmailMessage
 import pandas as pd
 import requests
+import smtplib
 
 BAUCAR_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1370653594&single=true&output=csv"
 APPLIKASI_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1571972700&single=true&output=csv"
 EMEL_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1298317374&single=true&output=csv"
 
-BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
-SCRIPT_VERSION = "BKA-BREVO-2026-08-10-V4-TXT-ATTACHMENT"
-BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
-BREVO_FROM_EMAIL = os.getenv("BREVO_FROM_EMAIL", "").strip()
-BREVO_FROM_NAME = os.getenv("BREVO_FROM_NAME", "E-Filing BKA").strip()
+SCRIPT_VERSION = "BKA-GMAIL-2026-08-11-V1-TXT-ATTACHMENT"
+GMAIL_USERNAME = os.getenv("GMAIL_USERNAME", "").strip()
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
+GMAIL_FROM_NAME = os.getenv("GMAIL_FROM_NAME", "E-Filing BKA").strip()
 TEST_MODE = os.getenv("TEST_MODE", "true").strip().lower() == "true"
 TEST_EMAIL = os.getenv("TEST_EMAIL", "").strip()
 GROUP_KEWANGAN_EMAIL = os.getenv("GROUP_KEWANGAN_EMAIL", "").strip()
@@ -59,14 +59,21 @@ def load_csv_url(url, label="CSV"):
 
 def validate_config():
     missing = []
-    if not BREVO_API_KEY:
-        missing.append("BREVO_API_KEY")
-    if not BREVO_FROM_EMAIL:
-        missing.append("BREVO_FROM_EMAIL")
+
+    if not GMAIL_USERNAME:
+        missing.append("GMAIL_USERNAME")
+
+    if not GMAIL_APP_PASSWORD:
+        missing.append("GMAIL_APP_PASSWORD")
+
     if TEST_MODE and not TEST_EMAIL:
         missing.append("TEST_EMAIL")
+
     if missing:
-        raise ValueError("GitHub Secret belum lengkap: " + ", ".join(missing))
+        raise ValueError(
+            "GitHub Secret belum lengkap: " + ", ".join(missing)
+        )
+
 
 def clean_text(series):
     return series.fillna("").astype(str).str.strip()
@@ -483,7 +490,7 @@ def build_email_html(owner_name, owner_id, rows):
     """
 
 
-def send_brevo_email(
+def send_gmail_email(
     to_email,
     to_name,
     subject,
@@ -492,66 +499,61 @@ def send_brevo_email(
     attachment_name="",
     attachment_text=""
 ):
-    headers = {
-        "accept": "application/json",
-        "content-type": "application/json",
-        "api-key": BREVO_API_KEY,
-    }
+    msg = EmailMessage()
 
-    payload = {
-        "sender": {
-            "name": BREVO_FROM_NAME,
-            "email": BREVO_FROM_EMAIL,
-        },
-        "to": [
-            {
-                "email": to_email,
-                "name": to_name,
-            }
-        ],
-        "subject": subject,
-        "htmlContent": html_body,
-    }
+    msg["From"] = f"{GMAIL_FROM_NAME} <{GMAIL_USERNAME}>"
+    msg["To"] = to_email
 
     if cc_email:
-        payload["cc"] = [
-            {
-                "email": cc_email,
-                "name": "Group Kewangan",
-            }
-        ]
+        msg["Cc"] = cc_email
 
-    if attachment_name and attachment_text:
-        payload["attachment"] = [
-            {
-                "name": attachment_name,
-                "content": base64.b64encode(
-                    attachment_text.encode("utf-8-sig")
-                ).decode("ascii"),
-            }
-        ]
+    msg["Subject"] = subject
 
-    response = requests.post(
-        BREVO_API_URL,
-        headers=headers,
-        json=payload,
-        timeout=60,
+    msg.set_content(
+        "Peringatan E-Filing BKA. "
+        "Sila buka email dalam format HTML untuk melihat ringkasan."
     )
 
-    if response.status_code not in (200, 201, 202):
-        raise RuntimeError(
-            f"Brevo API error {response.status_code}: {response.text}"
+    msg.add_alternative(
+        html_body,
+        subtype="html"
+    )
+
+    if attachment_name and attachment_text:
+        msg.add_attachment(
+            attachment_text.encode("utf-8-sig"),
+            maintype="text",
+            subtype="plain",
+            filename=attachment_name
         )
 
-    try:
-        return response.json()
-    except Exception:
-        return {}
+    recipients = [to_email]
+
+    if cc_email:
+        recipients.append(cc_email)
+
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=60) as server:
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+
+        server.login(
+            GMAIL_USERNAME,
+            GMAIL_APP_PASSWORD
+        )
+
+        server.send_message(
+            msg,
+            from_addr=GMAIL_USERNAME,
+            to_addrs=recipients
+        )
+
+    return {"messageId": "GMAIL-SMTP-SENT"}
 
 
 def main():
     validate_config()
-    print("E-FILING BKA - BREVO EMAIL REMINDER")
+    print("E-FILING BKA - GMAIL EMAIL REMINDER")
     print(f"SCRIPT_VERSION={SCRIPT_VERSION}")
     print(f"TEST_MODE={TEST_MODE}")
     print("========== SELF TEST PARSER ==========")
@@ -619,7 +621,7 @@ def main():
             html = banner + html
 
         try:
-            result = send_brevo_email(
+            result = send_gmail_email(
                 actual_to,
                 actual_name,
                 subject,
