@@ -3,11 +3,6 @@ name: E-Filing BKA Weekly Gmail Reminder
 on:
   workflow_dispatch:
 
-  schedule:
-    # Setiap Rabu, 9:45 pagi waktu Malaysia (UTC+8)
-    # GitHub Actions cron menggunakan UTC
-    - cron: "10 2 * * 3"
-
 jobs:
   send-weekly-email:
     runs-on: ubuntu-latest
