@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
 
   schedule:
-    # Setiap Rabu, 9:00 pagi waktu Malaysia (UTC+8)
+    # Setiap Rabu, 9:45 pagi waktu Malaysia (UTC+8)
     # GitHub Actions cron menggunakan UTC
-    - cron: "0 1 * * 3"
+    - cron: "45 1 * * 3"
 
 jobs:
   send-weekly-email:
