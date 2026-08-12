@@ -6,7 +6,7 @@ on:
   schedule:
     # Setiap Rabu, 9:45 pagi waktu Malaysia (UTC+8)
     # GitHub Actions cron menggunakan UTC
-    - cron: "1 2 * * 3"
+    - cron: "10 2 * * 3"
 
 jobs:
   send-weekly-email:
