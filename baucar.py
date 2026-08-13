@@ -158,7 +158,7 @@ def login_screen():
     <div style="max-width:520px; margin:70px auto 20px auto; padding:30px;
                 background:white; border-radius:22px;
                 box-shadow:0 15px 40px rgba(15,23,42,0.12); text-align:center;">
-        <h1 style="margin-bottom:6px;">i-FILING BKA</h1>
+        <h1 style="margin-bottom:6px;">i-FiLiNG BKA</h1>
         <p style="color:gray; margin-top:0;">Sila masukkan password untuk akses dashboard</p>
     </div>
     """, unsafe_allow_html=True)
