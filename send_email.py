@@ -16,7 +16,7 @@ EMEL_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_0
 SCRIPT_VERSION = "BKA-GMAIL-2026-08-11-V3-MULTI-BOSS-SUMMARY"
 GMAIL_USERNAME = os.getenv("GMAIL_USERNAME", "").strip()
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
-GMAIL_FROM_NAME = os.getenv("GMAIL_FROM_NAME", "E-Filing BKA").strip()
+GMAIL_FROM_NAME = os.getenv("GMAIL_FROM_NAME", "i-Filing BKA").strip()
 TEST_MODE = os.getenv("TEST_MODE", "true").strip().lower() == "true"
 TEST_EMAIL = os.getenv("TEST_EMAIL", "").strip()
 GROUP_KEWANGAN_EMAIL = os.getenv("GROUP_KEWANGAN_EMAIL", "").strip()
@@ -372,7 +372,7 @@ def build_txt_attachment(owner_name, owner_id, rows):
     }
 
     lines = [
-        "E-FILING BKA",
+        "I-FILING BKA",
         "SENARAI BAUCAR BELUM DIKEMASKINI",
         "=" * 90,
         f"Nama : {owner_name}",
@@ -411,7 +411,7 @@ def build_txt_attachment(owner_name, owner_id, rows):
     lines.extend([
         "",
         "-" * 120,
-        "Fail ini dijana secara automatik oleh sistem E-Filing BKA."
+        "Fail ini dijana secara automatik oleh sistem i-Filing BKA."
     ])
 
     return "\n".join(lines)
@@ -427,12 +427,12 @@ def build_email_html(owner_name, owner_id, rows):
     return f"""
     <html>
     <body style="font-family:Arial,sans-serif;color:#222;">
-        <h2>E-Filing BKA</h2>
+        <h2>i-Filing BKA</h2>
 
         <p>Tuan/Puan <b>{safe_html(owner_name)}</b>,</p>
 
         <p>
-            Berdasarkan rekod E-Filing BKA, terdapat
+            Berdasarkan rekod i-Filing BKA, terdapat
             <b>{len(rows):,} baucar</b> di bawah ID
             <b>{safe_html(owner_id)}</b> yang masih belum dikemaskini
             dan telah mencapai tempoh tiga (3) bulan atau lebih.
@@ -472,7 +472,7 @@ def build_email_html(owner_name, owner_id, rows):
             dalam fail <b>.txt</b>.
         </p>
 
-        <p>Mohon semakan dan tindakan kemaskini dibuat dalam E-Filing BKA.</p>
+        <p>Mohon semakan dan tindakan kemaskini dibuat dalam i-Filing BKA.<br><br>Akses i-Filing BKA: <a href="https://i-filing-baucar-cidb.streamlit.app/">https://i-filing-baucar-cidb.streamlit.app/</a></p>
 
         <p>Sekian, terima kasih.</p>
 
@@ -484,7 +484,7 @@ def build_email_html(owner_name, owner_id, rows):
         <hr>
 
         <p style="font-size:11px;color:#777;">
-            Email ini dijana secara automatik oleh sistem E-Filing BKA.
+            Email ini dijana secara automatik oleh sistem i-Filing BKA.
         </p>
     </body>
     </html>
@@ -567,7 +567,7 @@ def build_boss_summary_html(reminder):
     <html>
     <body style="font-family:Arial,sans-serif;color:#222;">
 
-        <h2>Ringkasan Mingguan E-Filing BKA</h2>
+        <h2>Ringkasan Mingguan i-Filing BKA</h2>
 
         <p>
             Berikut adalah ringkasan baucar
@@ -647,7 +647,7 @@ def build_boss_summary_html(reminder):
 
         <hr>
         <p style="font-size:11px;color:#777;">
-            Email ini dijana secara automatik oleh sistem E-Filing BKA.
+            Email ini dijana secara automatik oleh sistem i-Filing BKA.
         </p>
 
     </body>
@@ -692,7 +692,7 @@ def send_boss_summary(reminder):
     html = build_boss_summary_html(reminder)
 
     subject = (
-        f"Ringkasan Mingguan E-Filing BKA - "
+        f"Ringkasan Mingguan i-Filing BKA - "
         f"{len(reminder):,} Baucar ≥3 Bulan"
     )
 
@@ -703,7 +703,7 @@ def send_boss_summary(reminder):
     msg["Subject"] = subject
 
     msg.set_content(
-        "Ringkasan Mingguan E-Filing BKA. "
+        "Ringkasan Mingguan i-Filing BKA. "
         "Sila buka email dalam format HTML untuk melihat ringkasan."
     )
 
@@ -760,7 +760,7 @@ def send_gmail_email(
     msg["Subject"] = subject
 
     msg.set_content(
-        "Peringatan E-Filing BKA. "
+        "Peringatan i-Filing BKA. "
         "Sila buka email dalam format HTML untuk melihat ringkasan."
     )
 
@@ -803,7 +803,7 @@ def send_gmail_email(
 
 def main():
     validate_config()
-    print("E-FILING BKA - GMAIL EMAIL REMINDER")
+    print("I-FILING BKA - GMAIL EMAIL REMINDER")
     print(f"SCRIPT_VERSION={SCRIPT_VERSION}")
     print(f"TEST_MODE={TEST_MODE}")
     print("========== SELF TEST PARSER ==========")
@@ -848,7 +848,7 @@ def main():
         actual_name = f"TEST - {owner_name}" if TEST_MODE else owner_name
         actual_cc = "" if TEST_MODE else GROUP_KEWANGAN_EMAIL
 
-        subject = f"Peringatan Mingguan E-Filing BKA - {len(rows):,} Baucar Belum Dikemaskini"
+        subject = f"Peringatan Mingguan i-Filing BKA - {len(rows):,} Baucar Belum Dikemaskini"
         html = build_email_html(owner_name, owner_id, rows)
 
         txt_content = build_txt_attachment(owner_name, owner_id, rows)
