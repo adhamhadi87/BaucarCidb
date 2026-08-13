@@ -1,4 +1,4 @@
-name: E-Filing BKA Weekly Gmail Reminder
+name: i-Filing BKA Weekly Gmail Reminder
 
 on:
   workflow_dispatch:
@@ -52,8 +52,6 @@ jobs:
           GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           BOSS_EMAILS: ${{ secrets.BOSS_EMAILS }}
-
-          # LIVE MODE
           TEST_MODE: "false"
 
         run: python send_email.py
