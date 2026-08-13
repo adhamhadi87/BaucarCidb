@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 import re
 
-st.set_page_config(page_title="E-FILING BKA", page_icon="📁", layout="wide")
+st.set_page_config(page_title="i-FILING BKA", page_icon="📁", layout="wide")
 
 BAUCAR_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1370653594&single=true&output=csv"
 APPLIKASI_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1571972700&single=true&output=csv"
