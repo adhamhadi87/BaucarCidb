@@ -13,7 +13,7 @@ APPLIKASI_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjL
 EMEL_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1298317374&single=true&output=csv"
 
 
-SCRIPT_VERSION = "BKA-GMAIL-2026-08-11-V3-MULTI-BOSS-SUMMARY"
+SCRIPT_VERSION = "BKA-GMAIL-2026-08-19-V4-LINK-FIX"
 GMAIL_USERNAME = os.getenv("GMAIL_USERNAME", "").strip()
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
 GMAIL_FROM_NAME = os.getenv("GMAIL_FROM_NAME", "i-Filing BKA").strip()
@@ -419,6 +419,7 @@ def build_txt_attachment(owner_name, owner_id, rows):
 
 def build_email_html(owner_name, owner_id, rows):
     categories = ["3-6 BULAN", "6-9 BULAN", "9-12 BULAN", ">1 TAHUN"]
+
     counts = {
         category: int((rows["KATEGORI_AGING"] == category).sum())
         for category in categories
@@ -432,7 +433,7 @@ def build_email_html(owner_name, owner_id, rows):
         <p>Tuan/Puan <b>{safe_html(owner_name)}</b>,</p>
 
         <p>
-            Berdasarkan rekod i-Filing BKA, terdapat
+            Berdasarkan rekod <b>i-Filing BKA</b>, terdapat
             <b>{len(rows):,} baucar</b> di bawah ID
             <b>{safe_html(owner_id)}</b> yang masih belum dikemaskini
             dan telah mencapai tempoh tiga (3) bulan atau lebih.
@@ -445,51 +446,43 @@ def build_email_html(owner_name, owner_id, rows):
                 <th style="padding:8px;border:1px solid #ddd;text-align:left;">Kategori</th>
                 <th style="padding:8px;border:1px solid #ddd;text-align:right;">Jumlah</th>
             </tr>
-            <tr>
-                <td style="padding:8px;border:1px solid #ddd;">3-6 Bulan</td>
-                <td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts["3-6 BULAN"]:,}</td>
-            </tr>
-            <tr>
-                <td style="padding:8px;border:1px solid #ddd;">6-9 Bulan</td>
-                <td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts["6-9 BULAN"]:,}</td>
-            </tr>
-            <tr>
-                <td style="padding:8px;border:1px solid #ddd;">9-12 Bulan</td>
-                <td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts["9-12 BULAN"]:,}</td>
-            </tr>
-            <tr>
-                <td style="padding:8px;border:1px solid #ddd;">&gt; 1 Tahun</td>
-                <td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts[">1 TAHUN"]:,}</td>
-            </tr>
-            <tr>
-                <td style="padding:8px;border:1px solid #ddd;"><b>JUMLAH</b></td>
-                <td style="padding:8px;border:1px solid #ddd;text-align:right;"><b>{len(rows):,}</b></td>
-            </tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">3-6 Bulan</td><td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts["3-6 BULAN"]:,}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">6-9 Bulan</td><td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts["6-9 BULAN"]:,}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">9-12 Bulan</td><td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts["9-12 BULAN"]:,}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">&gt; 1 Tahun</td><td style="padding:8px;border:1px solid #ddd;text-align:right;">{counts[">1 TAHUN"]:,}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;"><b>JUMLAH</b></td><td style="padding:8px;border:1px solid #ddd;text-align:right;"><b>{len(rows):,}</b></td></tr>
         </table>
 
         <p>
-            Senarai penuh baucar disertakan bersama email ini
-            dalam fail <b>.txt</b>.
+            Senarai penuh baucar yang terlibat disertakan bersama emel ini
+            dalam fail <b>.txt</b> untuk rujukan.
         </p>
 
-        <p>Mohon semakan dan tindakan kemaskini dibuat dalam i-Filing BKA.<br><br>Akses i-Filing BKA: <a href="https://i-filing-baucar-cidb.streamlit.app/">https://i-filing-baucar-cidb.streamlit.app/</a></p>
+        <p>Mohon semakan dan tindakan kemaskini dibuat melalui <b>i-Filing BKA</b>.</p>
+
+        <p><b>Akses Sistem:</b></p>
+
+        <p>
+            <b>Dashboard i-Filing BKA</b><br>
+            <a href="https://i-filing-baucar-cidb.streamlit.app/">https://i-filing-baucar-cidb.streamlit.app/</a>
+        </p>
+
+        <p>
+            <b>Aplikasi i-Filing BKA</b><br>
+            <a href="https://www.appsheet.com/newshortcut/e377aa36-1623-4777">https://www.appsheet.com/newshortcut/e377aa36-1623-4777</a>
+        </p>
 
         <p>Sekian, terima kasih.</p>
 
-        <p>
-            <b>Bahagian Kewangan &amp; Akaun</b><br>
-            CIDB Malaysia
-        </p>
+        <p><b>Bahagian Kewangan &amp; Akaun</b><br>CIDB Malaysia</p>
 
         <hr>
-
         <p style="font-size:11px;color:#777;">
-            Email ini dijana secara automatik oleh sistem i-Filing BKA.
+            Emel ini dijana secara automatik oleh sistem i-Filing BKA.
         </p>
     </body>
     </html>
     """
-
 
 
 def build_boss_summary_html(reminder):
