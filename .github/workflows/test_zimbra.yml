@@ -1,0 +1,27 @@
+name: Test Zimbra SMTP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-zimbra:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Run Zimbra SMTP test
+        env:
+          ZIMBRA_USERNAME: ${{ secrets.ZIMBRA_USERNAME }}
+          ZIMBRA_PASSWORD: ${{ secrets.ZIMBRA_PASSWORD }}
+          ZIMBRA_TEST_TO: ${{ secrets.ZIMBRA_TEST_TO }}
+          ZIMBRA_SMTP_SERVER: "mail.cidb.gov.my"
+          ZIMBRA_SMTP_PORT: "587"
+
+        run: python test_zimbra.py
