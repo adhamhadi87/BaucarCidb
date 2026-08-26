@@ -13,10 +13,12 @@ APPLIKASI_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjL
 EMEL_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZIvd34YjLZRE_05LPX8tPH5bS20MWU_UnBQ9-Z_nep20bk4t0bdw8kdX2RKZyNfi1veTDyfcH3ZS9/pub?gid=1298317374&single=true&output=csv"
 
 
-SCRIPT_VERSION = "BKA-GMAIL-2026-08-19-V4-IFILING-DASHBOARD-APPSHEET"
-GMAIL_USERNAME = os.getenv("GMAIL_USERNAME", "").strip()
-GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
-GMAIL_FROM_NAME = os.getenv("GMAIL_FROM_NAME", "i-Filing BKA").strip()
+SCRIPT_VERSION = "BKA-ZIMBRA-2026-08-26-V1-MULTI-BOSS"
+ZIMBRA_USERNAME = os.getenv("ZIMBRA_USERNAME", "").strip()
+ZIMBRA_PASSWORD = os.getenv("ZIMBRA_PASSWORD", "").strip()
+ZIMBRA_FROM_NAME = os.getenv("ZIMBRA_FROM_NAME", "i-Filing BKA").strip()
+ZIMBRA_SMTP_SERVER = os.getenv("ZIMBRA_SMTP_SERVER", "mail.cidb.gov.my").strip()
+ZIMBRA_SMTP_PORT = int(os.getenv("ZIMBRA_SMTP_PORT", "587"))
 TEST_MODE = os.getenv("TEST_MODE", "true").strip().lower() == "true"
 TEST_EMAIL = os.getenv("TEST_EMAIL", "").strip()
 GROUP_KEWANGAN_EMAIL = os.getenv("GROUP_KEWANGAN_EMAIL", "").strip()
@@ -61,11 +63,11 @@ def load_csv_url(url, label="CSV"):
 def validate_config():
     missing = []
 
-    if not GMAIL_USERNAME:
-        missing.append("GMAIL_USERNAME")
+    if not ZIMBRA_USERNAME:
+        missing.append("ZIMBRA_USERNAME")
 
-    if not GMAIL_APP_PASSWORD:
-        missing.append("GMAIL_APP_PASSWORD")
+    if not ZIMBRA_PASSWORD:
+        missing.append("ZIMBRA_PASSWORD")
 
     if TEST_MODE and not TEST_EMAIL:
         missing.append("TEST_EMAIL")
@@ -716,7 +718,7 @@ def send_boss_summary(reminder):
 
     msg = EmailMessage()
 
-    msg["From"] = f"{GMAIL_FROM_NAME} <{GMAIL_USERNAME}>"
+    msg["From"] = f"{ZIMBRA_FROM_NAME} <{ZIMBRA_USERNAME}>"
     msg["To"] = ", ".join(boss_emails)
     msg["Subject"] = subject
 
@@ -731,8 +733,8 @@ def send_boss_summary(reminder):
     )
 
     with smtplib.SMTP(
-        "smtp.gmail.com",
-        587,
+        ZIMBRA_SMTP_SERVER,
+        ZIMBRA_SMTP_PORT,
         timeout=60
     ) as server:
 
@@ -741,13 +743,13 @@ def send_boss_summary(reminder):
         server.ehlo()
 
         server.login(
-            GMAIL_USERNAME,
-            GMAIL_APP_PASSWORD
+            ZIMBRA_USERNAME,
+            ZIMBRA_PASSWORD
         )
 
         server.send_message(
             msg,
-            from_addr=GMAIL_USERNAME,
+            from_addr=ZIMBRA_USERNAME,
             to_addrs=boss_emails
         )
 
@@ -758,7 +760,7 @@ def send_boss_summary(reminder):
     )
 
 
-def send_gmail_email(
+def send_zimbra_email(
     to_email,
     to_name,
     subject,
@@ -769,7 +771,7 @@ def send_gmail_email(
 ):
     msg = EmailMessage()
 
-    msg["From"] = f"{GMAIL_FROM_NAME} <{GMAIL_USERNAME}>"
+    msg["From"] = f"{ZIMBRA_FROM_NAME} <{ZIMBRA_USERNAME}>"
     msg["To"] = to_email
 
     if cc_email:
@@ -800,28 +802,28 @@ def send_gmail_email(
     if cc_email:
         recipients.append(cc_email)
 
-    with smtplib.SMTP("smtp.gmail.com", 587, timeout=60) as server:
+    with smtplib.SMTP(ZIMBRA_SMTP_SERVER, ZIMBRA_SMTP_PORT, timeout=60) as server:
         server.ehlo()
         server.starttls()
         server.ehlo()
 
         server.login(
-            GMAIL_USERNAME,
-            GMAIL_APP_PASSWORD
+            ZIMBRA_USERNAME,
+            ZIMBRA_PASSWORD
         )
 
         server.send_message(
             msg,
-            from_addr=GMAIL_USERNAME,
+            from_addr=ZIMBRA_USERNAME,
             to_addrs=recipients
         )
 
-    return {"messageId": "GMAIL-SMTP-SENT"}
+    return {"messageId": "ZIMBRA-SMTP-SENT"}
 
 
 def main():
     validate_config()
-    print("I-FILING BKA - GMAIL EMAIL REMINDER")
+    print("I-FILING BKA - ZIMBRA EMAIL REMINDER")
     print(f"SCRIPT_VERSION={SCRIPT_VERSION}")
     print(f"TEST_MODE={TEST_MODE}")
     print("========== SELF TEST PARSER ==========")
@@ -889,7 +891,7 @@ def main():
             html = banner + html
 
         try:
-            result = send_gmail_email(
+            result = send_zimbra_email(
                 actual_to,
                 actual_name,
                 subject,
