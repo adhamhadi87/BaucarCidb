@@ -4,8 +4,9 @@ import pandas as pd
 import plotly.express as px
 import re
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from io import StringIO
-from concurrent.futures import ThreadPoolExecutor
 
 st.set_page_config(page_title="i-FILING BKA", page_icon="📁", layout="wide")
 
@@ -188,19 +189,44 @@ if not st.session_state["authenticated"]:
 
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_csv(url, header="infer"):
+    """
+    Baca Google Sheet CSV dengan retry automatik.
+    Cache 1 jam supaya dashboard tidak download semula setiap kali filter/tab berubah.
+    """
+
     headers = {
         "User-Agent": "Mozilla/5.0",
         "Accept": "text/csv,text/plain,*/*",
+        "Connection": "keep-alive",
     }
 
-    response = requests.get(
-        url,
-        headers=headers,
-        timeout=30,
-        allow_redirects=True,
+    retry_strategy = Retry(
+        total=3,
+        connect=3,
+        read=3,
+        backoff_factor=1.5,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET"],
+        raise_on_status=False,
     )
+
+    session = requests.Session()
+    session.mount("https://", HTTPAdapter(max_retries=retry_strategy))
+
+    try:
+        response = session.get(
+            url,
+            headers=headers,
+            timeout=(15, 120),
+            allow_redirects=True,
+        )
+    except requests.exceptions.ReadTimeout as exc:
+        raise RuntimeError(
+            "Google Sheet mengambil masa terlalu lama untuk dibaca. "
+            "Sila cuba Refresh Data sekali lagi."
+        ) from exc
 
     if response.status_code != 200:
         raise RuntimeError(
@@ -225,7 +251,7 @@ def load_csv(url, header="infer"):
     return df
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_id_lookup(file_path):
     df = pd.read_excel(file_path, dtype=str)
     df.columns = df.columns.astype(str).str.strip().str.upper()
@@ -430,15 +456,11 @@ def aging_sort_key(label):
 bulan_order = ["JAN", "FEB", "MAC", "APR", "MEI", "JUN", "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"]
 
 with st.spinner("Memuatkan data i-Filing BKA..."):
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        future_baucar = executor.submit(load_csv, BAUCAR_CSV_URL)
-        future_aplikasi = executor.submit(load_csv, APPLIKASI_CSV_URL)
-        future_emel = executor.submit(load_csv, EMEL_CSV_URL)
-
-        baucar = future_baucar.result()
-        aplikasi = future_aplikasi.result()
-        emel = future_emel.result()
-
+    # Muat satu per satu supaya Google Sheet tidak menerima 3 request serentak.
+    # Cache 1 jam: selepas load pertama berjaya, filter/tab seterusnya sangat cepat.
+    baucar = load_csv(BAUCAR_CSV_URL)
+    aplikasi = load_csv(APPLIKASI_CSV_URL)
+    emel = load_csv(EMEL_CSV_URL)
     id_lookup = load_id_lookup(ID_LOOKUP_FILE)
 
 baucar = baucar.rename(columns={
