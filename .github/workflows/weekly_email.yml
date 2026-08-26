@@ -51,6 +51,7 @@ jobs:
         env:
           ZIMBRA_USERNAME: ${{ secrets.ZIMBRA_USERNAME }}
           ZIMBRA_PASSWORD: ${{ secrets.ZIMBRA_PASSWORD }}
+
           ZIMBRA_SMTP_SERVER: "mail.cidb.gov.my"
           ZIMBRA_SMTP_PORT: "587"
 
@@ -59,4 +60,4 @@ jobs:
 
           TEST_MODE: "false"
 
-        run: python send_email_ZIMBRA_CIDB_FULL.py
+        run: python send_email.py
