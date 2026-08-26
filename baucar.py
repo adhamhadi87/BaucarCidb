@@ -190,12 +190,13 @@ if not st.session_state["authenticated"]:
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def load_csv(url, header="infer"):
+def load_csv(url, header="infer", label="Google Sheet"):
     """
-    Baca Google Sheet CSV dengan retry automatik.
-    Cache 1 jam supaya dashboard tidak download semula setiap kali filter/tab berubah.
+    Loader diagnostic:
+    - paparkan terus status/error pada Streamlit
+    - retry automatik
+    - cache 1 jam
     """
-
     headers = {
         "User-Agent": "Mozilla/5.0",
         "Accept": "text/csv,text/plain,*/*",
@@ -203,9 +204,9 @@ def load_csv(url, header="infer"):
     }
 
     retry_strategy = Retry(
-        total=3,
-        connect=3,
-        read=3,
+        total=2,
+        connect=2,
+        read=2,
         backoff_factor=1.5,
         status_forcelist=[429, 500, 502, 503, 504],
         allowed_methods=["GET"],
@@ -219,31 +220,49 @@ def load_csv(url, header="infer"):
         response = session.get(
             url,
             headers=headers,
-            timeout=(15, 120),
+            timeout=(15, 90),
             allow_redirects=True,
         )
-    except requests.exceptions.ReadTimeout as exc:
-        raise RuntimeError(
-            "Google Sheet mengambil masa terlalu lama untuk dibaca. "
-            "Sila cuba Refresh Data sekali lagi."
-        ) from exc
+
+    except requests.exceptions.ReadTimeout:
+        st.error(f"{label}: TIMEOUT semasa membaca Google Sheet.")
+        st.code("Jenis error: ReadTimeout")
+        st.stop()
+
+    except requests.exceptions.ConnectionError as exc:
+        st.error(f"{label}: CONNECTION ERROR.")
+        st.code(f"Jenis error: {type(exc).__name__}")
+        st.stop()
+
+    except requests.exceptions.RequestException as exc:
+        st.error(f"{label}: REQUEST ERROR.")
+        st.code(f"{type(exc).__name__}: {exc}")
+        st.stop()
 
     if response.status_code != 200:
-        raise RuntimeError(
-            f"Gagal baca Google Sheet: HTTP {response.status_code} | "
-            f"URL akhir: {response.url}"
+        st.error(f"{label}: GAGAL BACA GOOGLE SHEET")
+        st.code(
+            f"HTTP STATUS : {response.status_code}\n"
+            f"URL AKHIR   : {response.url}"
         )
+        st.stop()
 
     content = response.text
 
     if not content.strip():
-        raise RuntimeError("Google Sheet kosong.")
+        st.error(f"{label}: Google Sheet kosong.")
+        st.stop()
 
-    df = pd.read_csv(
-        StringIO(content),
-        dtype=str,
-        header=header
-    )
+    try:
+        df = pd.read_csv(
+            StringIO(content),
+            dtype=str,
+            header=header
+        )
+    except Exception as exc:
+        st.error(f"{label}: CSV berjaya dimuat turun tetapi gagal dibaca.")
+        st.code(f"{type(exc).__name__}: {exc}")
+        st.stop()
 
     if header is not None:
         df.columns = df.columns.astype(str).str.strip()
@@ -458,9 +477,9 @@ bulan_order = ["JAN", "FEB", "MAC", "APR", "MEI", "JUN", "JUL", "OGO", "SEP", "O
 with st.spinner("Memuatkan data i-Filing BKA..."):
     # Muat satu per satu supaya Google Sheet tidak menerima 3 request serentak.
     # Cache 1 jam: selepas load pertama berjaya, filter/tab seterusnya sangat cepat.
-    baucar = load_csv(BAUCAR_CSV_URL)
-    aplikasi = load_csv(APPLIKASI_CSV_URL)
-    emel = load_csv(EMEL_CSV_URL)
+    baucar = load_csv(BAUCAR_CSV_URL, label="BAUCAR")
+    aplikasi = load_csv(APPLIKASI_CSV_URL, label="APPLIKASI")
+    emel = load_csv(EMEL_CSV_URL, label="EMEL")
     id_lookup = load_id_lookup(ID_LOOKUP_FILE)
 
 baucar = baucar.rename(columns={
@@ -499,7 +518,7 @@ email_name_col = next((emel_upper_map[x] for x in ["NAMA", "NAME"] if x in emel_
 email_addr_col = next((emel_upper_map[x] for x in ["EMAIL", "E-MAIL", "EMEL"] if x in emel_upper_map), None)
 
 if email_id_col is None or email_addr_col is None:
-    emel = load_csv(EMEL_CSV_URL, header=None)
+    emel = load_csv(EMEL_CSV_URL, header=None, label="EMEL")
     emel = emel.iloc[:, :3].copy()
     if emel.shape[1] < 3:
         st.error("Sheet emel perlu ada sekurang-kurangnya 3 column: ID, NAMA, EMAIL.")
