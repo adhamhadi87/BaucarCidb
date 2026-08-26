@@ -1,4 +1,4 @@
-name: i-Filing BKA Weekly Gmail Reminder
+name: i-Filing BKA Weekly Zimbra Reminder
 
 on:
   workflow_dispatch:
@@ -21,24 +21,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas requests
 
-      - name: Check Gmail secrets
+      - name: Check Zimbra secrets
         env:
-          GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
-          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ZIMBRA_USERNAME: ${{ secrets.ZIMBRA_USERNAME }}
+          ZIMBRA_PASSWORD: ${{ secrets.ZIMBRA_PASSWORD }}
           BOSS_EMAILS: ${{ secrets.BOSS_EMAILS }}
         run: |
-          if [ -z "$GMAIL_USERNAME" ]; then
-            echo "ERROR: GMAIL_USERNAME tidak diterima oleh workflow"
+          if [ -z "$ZIMBRA_USERNAME" ]; then
+            echo "ERROR: ZIMBRA_USERNAME tidak diterima oleh workflow"
             exit 1
           else
-            echo "OK: GMAIL_USERNAME diterima"
+            echo "OK: ZIMBRA_USERNAME diterima"
           fi
 
-          if [ -z "$GMAIL_APP_PASSWORD" ]; then
-            echo "ERROR: GMAIL_APP_PASSWORD tidak diterima oleh workflow"
+          if [ -z "$ZIMBRA_PASSWORD" ]; then
+            echo "ERROR: ZIMBRA_PASSWORD tidak diterima oleh workflow"
             exit 1
           else
-            echo "OK: GMAIL_APP_PASSWORD diterima"
+            echo "OK: ZIMBRA_PASSWORD diterima"
           fi
 
           if [ -z "$BOSS_EMAILS" ]; then
@@ -47,11 +47,16 @@ jobs:
             echo "OK: BOSS_EMAILS diterima"
           fi
 
-      - name: Run weekly Gmail reminder
+      - name: Run weekly Zimbra reminder
         env:
-          GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
-          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ZIMBRA_USERNAME: ${{ secrets.ZIMBRA_USERNAME }}
+          ZIMBRA_PASSWORD: ${{ secrets.ZIMBRA_PASSWORD }}
+          ZIMBRA_SMTP_SERVER: "mail.cidb.gov.my"
+          ZIMBRA_SMTP_PORT: "587"
+
           BOSS_EMAILS: ${{ secrets.BOSS_EMAILS }}
+          GROUP_KEWANGAN_EMAIL: ${{ secrets.GROUP_KEWANGAN_EMAIL }}
+
           TEST_MODE: "false"
 
-        run: python send_email.py
+        run: python send_email_ZIMBRA_CIDB_FULL.py
