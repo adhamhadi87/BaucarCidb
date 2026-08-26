@@ -3,6 +3,9 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import re
+import requests
+from io import StringIO
+from concurrent.futures import ThreadPoolExecutor
 
 st.set_page_config(page_title="i-FILING BKA", page_icon="📁", layout="wide")
 
@@ -185,16 +188,44 @@ if not st.session_state["authenticated"]:
 
 
 
-@st.cache_data(ttl=600, show_spinner=False)
-def load_csv(url):
-    # Cache 10 minit supaya dashboard laju.
-    # Tekan Reset Filter + Refresh Data untuk paksa baca semula Google Sheet.
-    df = pd.read_csv(url, dtype=str)
-    df.columns = df.columns.astype(str).str.strip()
+@st.cache_data(ttl=1800, show_spinner=False)
+def load_csv(url, header="infer"):
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "text/csv,text/plain,*/*",
+    }
+
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30,
+        allow_redirects=True,
+    )
+
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"Gagal baca Google Sheet: HTTP {response.status_code} | "
+            f"URL akhir: {response.url}"
+        )
+
+    content = response.text
+
+    if not content.strip():
+        raise RuntimeError("Google Sheet kosong.")
+
+    df = pd.read_csv(
+        StringIO(content),
+        dtype=str,
+        header=header
+    )
+
+    if header is not None:
+        df.columns = df.columns.astype(str).str.strip()
+
     return df
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=1800, show_spinner=False)
 def load_id_lookup(file_path):
     df = pd.read_excel(file_path, dtype=str)
     df.columns = df.columns.astype(str).str.strip().str.upper()
@@ -398,10 +429,16 @@ def aging_sort_key(label):
 
 bulan_order = ["JAN", "FEB", "MAC", "APR", "MEI", "JUN", "JUL", "OGO", "SEP", "OKT", "NOV", "DIS"]
 
-with st.spinner("Loading data dari Google Sheet..."):
-    baucar = load_csv(BAUCAR_CSV_URL)
-    aplikasi = load_csv(APPLIKASI_CSV_URL)
-    emel = load_csv(EMEL_CSV_URL)
+with st.spinner("Memuatkan data i-Filing BKA..."):
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        future_baucar = executor.submit(load_csv, BAUCAR_CSV_URL)
+        future_aplikasi = executor.submit(load_csv, APPLIKASI_CSV_URL)
+        future_emel = executor.submit(load_csv, EMEL_CSV_URL)
+
+        baucar = future_baucar.result()
+        aplikasi = future_aplikasi.result()
+        emel = future_emel.result()
+
     id_lookup = load_id_lookup(ID_LOOKUP_FILE)
 
 baucar = baucar.rename(columns={
@@ -440,7 +477,7 @@ email_name_col = next((emel_upper_map[x] for x in ["NAMA", "NAME"] if x in emel_
 email_addr_col = next((emel_upper_map[x] for x in ["EMAIL", "E-MAIL", "EMEL"] if x in emel_upper_map), None)
 
 if email_id_col is None or email_addr_col is None:
-    emel = pd.read_csv(EMEL_CSV_URL, dtype=str, header=None)
+    emel = load_csv(EMEL_CSV_URL, header=None)
     emel = emel.iloc[:, :3].copy()
     if emel.shape[1] < 3:
         st.error("Sheet emel perlu ada sekurang-kurangnya 3 column: ID, NAMA, EMAIL.")
